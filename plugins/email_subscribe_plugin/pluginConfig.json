@@ -1,0 +1,13 @@
+{
+  "pluginName": "Email Subscriber Plugin",
+  "startupCommand": "./email_subscribe_plugin",
+  "protocols": ["json"],
+  "maxRequestTimeout": 5000,
+  "maxStartupTime": 5000,
+  "requestInformation": {
+    "requestMethods": ["GET", "HEAD"],
+    "hosts": ["*"],
+    "paths": ["*"]
+  }
+}
+

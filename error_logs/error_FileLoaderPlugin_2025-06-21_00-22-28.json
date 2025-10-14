@@ -1,0 +1,5 @@
+{
+  "errorCode": 2000,
+  "errorDescription": "Error handling request: FileSystemException: Failed to decode data using encoding 'utf-8', path = '/Users/lukasconrad/IdeaProjects/rust_webserver/websites/example1/website/icons/Icon-192.png'",
+  "policy": "report"
+}

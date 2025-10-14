@@ -1,0 +1,5 @@
+{
+  "errorCode": 1001,
+  "errorDescription": "Unknown package type: startup",
+  "policy": "report"
+}

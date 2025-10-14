@@ -1,0 +1,10 @@
+{
+  "websiteName": "ExampleSite",
+  "hosts": ["*"],
+  "rootDirectory": "website",
+  "errorPages": {
+    "404": "errors/404.html",
+    "500": "errors/500.html"
+  }
+}
+

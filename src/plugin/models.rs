@@ -4,7 +4,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fmt;
 use strum::{Display, EnumString};
-// Plugin Konfiguration aus der pluginConfig.json
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -25,7 +24,6 @@ pub struct RequestInformation {
     pub paths: Vec<String>,
 }
 
-// HTTP-Strukturen, die in verschiedenen Paket-Typen verwendet werden
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpRequest {
@@ -50,7 +48,6 @@ pub struct HttpHeader {
     pub value: String,
 }
 
-// Error-Log für persistentes Error-Logging
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorLog {
@@ -60,7 +57,6 @@ pub struct ErrorLog {
     pub error_details: String,
 }
 
-// Paket-Typen als Enum für Typsicherheit
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
 #[serde(rename_all = "camelCase")]
 pub enum PackageType {
@@ -75,14 +71,12 @@ pub enum PackageType {
     Unknown,
 }
 
-// Einheitliche Paketstruktur für alle Kommunikationsarten
 #[derive(Debug, Clone)]
 pub struct Package<T> {
     pub package_type: PackageType,
     pub content: T,
 }
 
-// Implementierung für Serialisierung
 impl<T: Serialize> Serialize for Package<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -95,7 +89,6 @@ impl<T: Serialize> Serialize for Package<T> {
     }
 }
 
-// Implementierung für Deserialisierung mit generischem Content-Typ
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Package<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -150,7 +143,6 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Package<T> {
     }
 }
 
-// Content-Typen für die verschiedenen Paketarten
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct HandshakeRequestContent {
@@ -193,7 +185,6 @@ pub struct LogContent {
     pub message: String,
 }
 
-// Typ-Alias-Definitionen für bessere Lesbarkeit und Abwärtskompatibilität
 pub type HandshakeRequest = Package<HandshakeRequestContent>;
 pub type HandshakeResponse = Package<HandshakeResponseContent>;
 pub type NormalRequest = Package<NormalRequestContent>;
@@ -202,7 +193,6 @@ pub type ErrorReport = Package<ErrorReportContent>;
 pub type LogMessage = Package<LogContent>;
 pub type ShutdownRequest = Package<HashMap<String, String>>;
 
-// PackageContent Enum für die Deserialisierung eines generischen Pakets
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PackageContent {
     Startup(HandshakeRequestContent),
@@ -215,14 +205,12 @@ pub enum PackageContent {
     Unknown(serde_json::Value),
 }
 
-// Ein generisches Paket, das verschiedene Content-Typen enthalten kann
 #[derive(Debug, Clone, Serialize)]
 pub struct GenericPackage {
     pub package_type: PackageType,
     pub content: PackageContent,
 }
 
-// Implementierung für die Deserialisierung eines generischen Pakets
 impl<'de> Deserialize<'de> for GenericPackage {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -237,7 +225,6 @@ impl<'de> Deserialize<'de> for GenericPackage {
 
         let helper = Helper::deserialize(deserializer)?;
 
-        // Basierend auf dem Paket-Typ den Content entsprechend deserialisieren
         let content = match helper.package_type {
             PackageType::Startup => {
                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {

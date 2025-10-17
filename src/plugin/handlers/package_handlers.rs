@@ -51,10 +51,10 @@ where
         tokio::spawn(async move {
             let mut writer_guard = writer.lock().await;
             if let Err(e) = writer_guard.write_all(&package_with_header).await {
-                eprintln!("Fehler beim Senden: {}", e);
+                eprintln!("Error sending: {}", e);
             }
             if let Err(e) = writer_guard.flush().await {
-                eprintln!("Fehler beim Senden {}", e)
+                eprintln!("Error sending: {}", e)
             }
         });
 
@@ -104,18 +104,18 @@ where
                                 }
                             }
                             Err(e) => {
-                                info!("Fehler beim Lesen der Paketdaten: {}", e);
+                                info!("Error reading packet data: {}", e);
                                 continue;
                             }
                         }
                     }
                     Err(e) => {
                         if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                            info!("Reader-Loop beendet: EOF erreicht");
+                            info!("Reader loop terminated: EOF reached");
                             break;
                         }
 
-                        info!("Fehler beim Lesen des Längenheaders: {}", e);
+                        info!("Error reading length header: {}", e);
                         continue;
                     }
                 }

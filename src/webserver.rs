@@ -7,6 +7,7 @@ use hyper::{Request, Response, StatusCode};
 use log::{error, info};
 use std::convert::Infallible;
 use std::sync::Arc;
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::plugin::models::{HttpHeader, HttpRequest};
 use crate::plugin::{Plugin, PluginManager};
@@ -55,7 +56,7 @@ impl WebServer {
                 if self.match_pattern(host_pattern, host) {
                     matches = true;
                     if host_pattern != "*" {
-                        // Zähle die Anzahl der festen Segmente für Spezifität
+                        // Count the number of fixed segments for specificity
                         specificity += host_pattern.chars().filter(|&c| c != '*').count();
                     }
                     break;
@@ -71,7 +72,7 @@ impl WebServer {
                 if self.match_pattern(path_pattern, path) {
                     matches = true;
                     if path_pattern != "*" {
-                        // Zähle die Anzahl der festen Segmente für Spezifität
+                        // Count the number of fixed segments for specificity
                         specificity += path_pattern.chars().filter(|&c| c != '*').count();
                     }
                     break;
@@ -82,7 +83,7 @@ impl WebServer {
                 continue;
             }
 
-            // Update beste Übereinstimmung, wenn dieses Plugin spezifischer ist
+            // Update best match if this plugin is more specific
             if let Some((best_specificity, _)) = best_match {
                 if specificity > best_specificity {
                     best_match = Some((specificity, plugin));
@@ -167,6 +168,18 @@ impl WebServer {
 
                 match plugin.handle_request(http_request).await {
                     Ok(plugin_response) => {
+                        // Decode the base64-encoded body
+                        let body_bytes = match general_purpose::STANDARD.decode(&plugin_response.body) {
+                            Ok(bytes) => bytes,
+                            Err(e) => {
+                                error!("Failed to decode base64 body: {}", e);
+                                return Response::builder()
+                                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                    .body(Full::new(Bytes::from("Failed to decode response body")))
+                                    .unwrap();
+                            }
+                        };
+
                         // Convert the plugin response to an HTTP response
                         let mut response_builder = Response::builder().status(StatusCode::OK);
 
@@ -176,7 +189,7 @@ impl WebServer {
                         }
 
                         response_builder
-                            .body(Full::new(Bytes::from(plugin_response.body)))
+                            .body(Full::new(Bytes::from(body_bytes)))
                             .unwrap_or_else(|_| {
                                 Response::builder()
                                     .status(StatusCode::INTERNAL_SERVER_ERROR)

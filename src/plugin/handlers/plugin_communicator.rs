@@ -28,7 +28,7 @@ impl AsyncPluginCommunicator {
         package_callback: CallbackFn,
     ) -> Self {
         info!(
-            "Erstelle neuen AsyncPluginCommunicator für Plugin: {}",
+            "Creating new AsyncPluginCommunicator for plugin: {}",
             plugin_config.plugin_name
         );
         let waiting_handles = Arc::new(Mutex::new(HashMap::new()));
@@ -43,7 +43,7 @@ impl AsyncPluginCommunicator {
             plugin_config,
         };
 
-        // Verwende eine Referenz auf das struct im Callback
+        // Use a reference to the struct in the callback
         result
             .package_handler
             .set_callback_function(Box::new(move |bytes| {
@@ -103,7 +103,7 @@ impl AsyncPluginCommunicator {
             .await;
 
         info!(
-            "Reader-Loop für Plugin {} gestartet",
+            "Reader loop for plugin {} started",
             result.plugin_config.plugin_name
         );
         result.package_handler.start_reader_loop();
@@ -173,7 +173,7 @@ impl PluginCommunicator for AsyncPluginCommunicator {
         package: HandshakeRequest,
     ) -> Result<HandshakeResponse, PackageHandlerError> {
         info!(
-            "Sende Handshake-Anfrage an Plugin {}",
+            "Sending handshake request to plugin {}",
             self.plugin_config.plugin_name
         );
         let (sender, receiver) = oneshot::channel::<HandshakeResponse>();
@@ -188,28 +188,28 @@ impl PluginCommunicator for AsyncPluginCommunicator {
                 match result {
                     Ok(response) => {
                         info!(
-                            "Handshake-Antwort erfolgreich von Plugin {} empfangen",
+                            "Handshake response successfully received from plugin {}",
                             self.plugin_config.plugin_name
                         );
                         Ok(response)
                     }
                     Err(_) => {
-                        info!("Kommunikationskanal für Handshake mit Plugin {} unerwartet geschlossen", self.plugin_config.plugin_name);
+                        info!("Communication channel for handshake with plugin {} unexpectedly closed", self.plugin_config.plugin_name);
                         Err(PackageHandlerError::SendingFailed(
-                            "Der Kommunikationskanal wurde unerwartet geschlossen".to_string(),
+                            "The communication channel was unexpectedly closed".to_string(),
                         ))
                     }
                 }
             }
             Err(_) => {
                 info!(
-                    "Zeitüberschreitung beim Handshake mit Plugin {} nach {}ms",
+                    "Timeout while handshaking with plugin {} after {}ms",
                     self.plugin_config.plugin_name, timout
                 );
                 let _ = self.handshake_request.lock().await.take();
 
                 Err(PackageHandlerError::SendingFailed(format!(
-                    "Zeitüberschreitung nach {}ms beim Warten auf Antwort für Paket",
+                    "Timeout after {}ms waiting for response for package",
                     timout,
                 )))
             }

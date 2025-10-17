@@ -40,7 +40,7 @@ impl Plugin {
         if let None = option {
             return Err(io::Error::new(
                 ErrorKind::InvalidInput,
-                "Kein übergeordnetes Verzeichnis gefunden",
+                "No parent directory found",
             ));
         }
 
@@ -53,17 +53,17 @@ impl Plugin {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        // Prozess-Streams extrahieren
+        // Extract process streams
         let stdin = process
             .stdin
             .take()
-            .ok_or_else(|| io::Error::new(ErrorKind::Other, "Konnte stdin nicht extrahieren"))?;
+            .ok_or_else(|| io::Error::new(ErrorKind::Other, "Could not extract stdin"))?;
         let stdout = process
             .stdout
             .take()
-            .ok_or_else(|| io::Error::new(ErrorKind::Other, "Konnte stdout nicht extrahieren"))?;
+            .ok_or_else(|| io::Error::new(ErrorKind::Other, "Could not extract stdout"))?;
 
-        // AsyncPackageHandler erstellen
+        // Create AsyncPackageHandler
         let package_handler = AsyncPackageHandler::new(stdin, stdout);
 
         let handler = Box::new(package_handler);
@@ -110,7 +110,7 @@ impl Plugin {
         };
         self.communicator.send_package(request)?;
 
-        // Warten auf Prozessbeendigung
+        // Wait for process termination
         let mut process_guard = self.process.lock().await;
         let status = process_guard.wait().await.map_err(move |e| {
             PackageHandlerError::ProcessCommunicationError(format!(
@@ -121,7 +121,7 @@ impl Plugin {
 
         if !status.success() {
             Err(PackageHandlerError::ShutdownError(format!(
-                "Prozess mit Exitcode {} beendet",
+                "Process terminated with exit code {}",
                 status.code().unwrap_or(-1)
             )))
         } else {
@@ -180,7 +180,7 @@ impl Plugin {
                 let prefix = &p[0..p.len() - 1];
                 path.starts_with(prefix)
             } else if p.contains("/**/") {
-                // Einfache Implementierung für Pfade mit Wildcards
+                // Simple implementation for paths with wildcards
                 let parts: Vec<&str> = p.split("/**/").collect();
                 path.starts_with(parts[0]) && path.ends_with(parts[1])
             } else {

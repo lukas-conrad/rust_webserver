@@ -39,7 +39,6 @@ where
     R: AsyncReadExt + Unpin + Send + Sync + 'static,
 {
     fn send_package(&self, data: Vec<u8>) -> Result<(), PackageHandlerError> {
-        // info!("Sende Paket mit {} Bytes", data.len());
         let writer = self.writer.clone();
         let data_len = data.len() as u32;
 
@@ -84,7 +83,6 @@ where
                 match length_result {
                     Ok(_) => {
                         let packet_length = u32::from_be_bytes(length_buffer);
-                        // info!("Paketlänge erkannt: {} Bytes", packet_length);
 
                         let mut data_buffer = vec![0u8; packet_length as usize];
 

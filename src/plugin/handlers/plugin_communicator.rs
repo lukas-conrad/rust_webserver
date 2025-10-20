@@ -56,7 +56,6 @@ impl AsyncPluginCommunicator {
                         if package.package_type == PackageType::Response {
                             if let PackageContent::Response(content) = package.content {
                                 let package_id = content.package_id;
-                                // info!("Response-Paket empfangen: ID {}", package_id);
 
                                 tokio::spawn(async move {
                                     let mut map = handles_clone.lock().await;
@@ -72,7 +71,6 @@ impl AsyncPluginCommunicator {
                         } else if package.package_type == PackageType::StartupResponse
                             || package.package_type == PackageType::Startup
                         {
-                            // info!("Startup-Response-Paket empfangen");
                             let package_content = package.content.clone();
                             if let PackageContent::StartupResponse(content) = package_content {
                                 tokio::spawn(async move {
@@ -87,7 +85,6 @@ impl AsyncPluginCommunicator {
                                 });
                             }
                         } else {
-                            // info!("Anderes Paket empfangen: Typ {:?}", package.package_type);
                             let callback_clone = package_callback_arc.clone();
                             tokio::spawn(async move {
                                 let callback = callback_clone.lock().await;

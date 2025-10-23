@@ -1,23 +1,38 @@
-name: Build and Deploy Rust App
+name: Build and Deploy Rust Webserver
 
 on:
   push:
     branches:
-      - release
+      - release  # Trigger only on pushes to release branch
 
 jobs:
-  build:
-    runs-on: self-hosted  # statt ubuntu-latest
+  build-and-deploy:
+    runs-on: self-hosted  # your self-hosted runner
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Rust (if not already installed)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
 
       - name: Build release binary
         run: cargo build --release
 
-      - name: Restart service
+      - name: Stop old instance
         run: |
-          sudo systemctl stop myapp
-          sudo cp target/release/myapp /opt/myapp/myapp
-          sudo systemctl start myapp
+          # Kill existing screen session if running
+          if screen -list | grep -q "rust_webserver"; then
+            screen -S rust_webserver -X quit
+          fi
+
+      - name: Deploy binary
+        run: |
+          # Ensure target location exists
+          mkdir -p ~/bin
+          # Copy new binary
+          cp target/release/rust_webserver ~/bin/rust_webserver
+          # Start in a detached screen session
+          screen -dmS rust_webserver ~/bin/rust_webserver

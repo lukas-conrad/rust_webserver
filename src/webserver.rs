@@ -212,7 +212,7 @@ impl WebServer {
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .body(Full::new(Bytes::from(
-                        "No plugin found to handle this request",
+                        "Request cannot be processed",
                     )))
                     .unwrap()
             }

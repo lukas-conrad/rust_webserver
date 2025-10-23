@@ -1,0 +1,23 @@
+name: Build and Deploy Rust App
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  build:
+    runs-on: self-hosted  # statt ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Restart service
+        run: |
+          sudo systemctl stop myapp
+          sudo cp target/release/myapp /opt/myapp/myapp
+          sudo systemctl start myapp

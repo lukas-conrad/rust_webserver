@@ -22,18 +22,12 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
-      - name: Stop old instance
-        run: |
-          # Kill existing screen session if running
-          if screen -list | grep -q "rust_webserver"; then
-            screen -S rust_webserver -X quit
-          fi
-
       - name: Deploy binary
         run: |
-          # Ensure target location exists
           mkdir -p ~/bin
-          # Copy new binary
           cp target/release/rust_webserver ~/bin/rust_webserver
-          # Start in a detached screen session
-          screen -dmS rust_webserver ~/bin/rust_webserver
+          # Stop old instance
+          pkill -f rust_webserver || true
+          # Start in background
+          nohup ~/bin/rust_webserver > ~/bin/rust_webserver.log 2>&1 &
+      

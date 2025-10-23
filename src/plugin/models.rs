@@ -3,6 +3,7 @@ use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fmt;
+use hyper::StatusCode;
 use strum::{Display, EnumString};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -38,6 +39,7 @@ pub struct HttpRequest {
 #[serde(rename_all = "camelCase")]
 pub struct HttpResponse {
     pub headers: Vec<HttpHeader>,
+    pub status_code: u16,
     pub body: String,
 }
 

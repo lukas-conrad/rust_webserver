@@ -180,8 +180,10 @@ impl WebServer {
                             }
                         };
 
+                        let status_code = StatusCode::from_u16(plugin_response.status_code).unwrap_or_else(|_| {StatusCode::INTERNAL_SERVER_ERROR});
+
                         // Convert the plugin response to an HTTP response
-                        let mut response_builder = Response::builder().status(StatusCode::OK);
+                        let mut response_builder = Response::builder().status(status_code);
 
                         // Add headers
                         for header in plugin_response.headers {

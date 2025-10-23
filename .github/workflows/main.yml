@@ -19,15 +19,16 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Build release binary
+      - name: Build release binaryD
         run: cargo build --release
 
       - name: Deploy binary
         run: |
           mkdir -p ~/bin
-          cp target/release/rust_webserver ~/bin/rust_webserver
+          cp target/release/rust_webserver root/webserver/rust_webserver
           # Stop old instance
           pkill -f rust_webserver || true
           # Start in background
-          nohup ~/bin/rust_webserver > ~/bin/rust_webserver.log 2>&1 &
+          sudo systemctl restart rust_webserver
+          
       

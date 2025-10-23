@@ -24,10 +24,9 @@ jobs:
 
       - name: Deploy binary
         run: |
+          sudo systemctl stop rust_webserver
           sudo cp target/release/rust_webserver /root/webserver/rust_webserver
-          # Stop old instance
-          pkill -f rust_webserver || true
-          # Start in background
-          sudo systemctl restart rust_webserver
+          sudo systemctl start rust_webserver
+      
           
       

@@ -25,7 +25,7 @@ jobs:
       - name: Deploy binary
         run: |
           mkdir -p ~/bin
-          cp target/release/rust_webserver root/webserver/rust_webserver
+          cp target/release/rust_webserver /root/webserver/rust_webserver
           # Stop old instance
           pkill -f rust_webserver || true
           # Start in background

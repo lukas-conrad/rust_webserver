@@ -12,6 +12,7 @@ use tokio::net::TcpListener;
 
 mod plugin;
 mod webserver;
+mod controlSystem;
 
 use webserver::{WebServer, WebServerService};
 use crate::plugin::PluginManager;

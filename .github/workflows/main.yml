@@ -19,6 +19,9 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Run tests
+        run: cargo test
+
       - name: Build release binary
         run: cargo build --release
 
@@ -28,5 +31,7 @@ jobs:
           sudo cp target/release/rust_webserver /root/webserver/rust_webserver
           sudo systemctl start rust_webserver
       
-          
-      
+      - name: Cleanup
+        if: always()
+        run: cargo clean
+

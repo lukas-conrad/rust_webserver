@@ -12,10 +12,12 @@ use tokio::net::TcpListener;
 
 mod plugin;
 mod webserver;
-mod controlSystem;
+mod control_system;
 
 use webserver::{WebServer, WebServerService};
 use crate::plugin::PluginManager;
+use crate::control_system::control_system::DefaultControlSystem;
+use crate::control_system::cli::CommandLineInterface;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
@@ -40,6 +42,17 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     }
 
     let server = Arc::new(WebServer::new(plugin_manager));
+
+    // Initialisiere das Control System
+    let control_system = Arc::new(DefaultControlSystem::new());
+    info!("Control System initialized");
+
+    // Starte die CLI in einem separaten Thread
+    let cli_control_system = control_system.clone();
+    std::thread::spawn(move || {
+        let cli = CommandLineInterface::new(cli_control_system);
+        cli.run();
+    });
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 80));
     let listener = TcpListener::bind(addr).await?;

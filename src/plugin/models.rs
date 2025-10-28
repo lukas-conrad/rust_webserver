@@ -3,7 +3,6 @@ use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fmt;
-use hyper::StatusCode;
 use strum::{Display, EnumString};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

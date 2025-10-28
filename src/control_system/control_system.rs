@@ -1,4 +1,4 @@
-use super::commands::{HelloCommand, HelpCommand, ListPluginsCommand};
+use super::commands::{HelloCommand, HelpCommand, ListPluginsCommand, StopPluginCommand, StartPluginCommand, ReloadPluginCommand};
 use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,7 +24,10 @@ impl DefaultControlSystem {
         };
 
         system.register_command(Box::new(HelloCommand));
-        system.register_command(Box::new(ListPluginsCommand::new(plugin_manager)));
+        system.register_command(Box::new(ListPluginsCommand::new(plugin_manager.clone())));
+        system.register_command(Box::new(StopPluginCommand::new(plugin_manager.clone())));
+        system.register_command(Box::new(StartPluginCommand::new(plugin_manager.clone())));
+        system.register_command(Box::new(ReloadPluginCommand::new(plugin_manager)));
         system.register_command(Box::new(HelpCommand::new(system.get_all_command_descriptors())));
 
         system

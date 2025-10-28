@@ -34,9 +34,6 @@ pub enum PluginError {
     #[error("Plugin startup failed: {0}")]
     StartupFailed(String),
 
-    #[error("Plugin handshake failed: {0}")]
-    HandshakeFailed(String),
-
     #[error("Plugin process failed: {0}")]
     ProcessError(String),
 

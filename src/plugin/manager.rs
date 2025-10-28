@@ -1,5 +1,6 @@
 use crate::plugin::interfaces::{Plugin, PluginError, State};
 use crate::plugin::models::PackageContent::{Error, Log};
+use crate::plugin::models::PluginConfig;
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -113,6 +114,140 @@ impl PluginManager {
             .iter()
             .find(|p| p.config.plugin_name == plugin_name && p.state == State::Running)
             .cloned()
+    }
+
+    pub async fn stop_plugin(&self, plugin_name: &str) -> Result<String, PluginError> {
+        let plugins = self.plugins.lock().await;
+
+        let plugin = plugins
+            .iter()
+            .find(|p| p.config.plugin_name == plugin_name)
+            .ok_or_else(|| PluginError::ConfigError(format!("Plugin '{}' not found", plugin_name)))?;
+
+        // Nur stoppen, wenn das Plugin läuft
+        if plugin.state != State::Running {
+            return Err(PluginError::ProcessError(format!(
+                "Plugin '{}' is not running (current state: {:?})",
+                plugin_name, plugin.state
+            )));
+        }
+
+        // Plugin stoppen (bleibt aber in der Liste)
+        plugin.stop().await.map_err(|e| PluginError::ProcessError(format!("Failed to stop plugin: {}", e)))?;
+
+        info!("Plugin '{}' stopped successfully", plugin_name);
+        Ok(format!("Plugin '{}' stopped successfully", plugin_name))
+    }
+
+    pub async fn start_plugin_by_name(&self, plugin_name: &str) -> Result<String, PluginError> {
+        let mut plugins = self.plugins.lock().await;
+
+        // Finde das Plugin in der Liste
+        let plugin_index = plugins
+            .iter()
+            .position(|p| p.config.plugin_name == plugin_name)
+            .ok_or_else(|| PluginError::ConfigError(format!("Plugin '{}' not found in plugin list", plugin_name)))?;
+
+        let existing_plugin = &plugins[plugin_index];
+
+        // Prüfe, ob das Plugin bereits läuft
+        if existing_plugin.state == State::Running {
+            return Err(PluginError::ProcessError(format!("Plugin '{}' is already running", plugin_name)));
+        }
+
+        // Hole den Config-Pfad vom existierenden Plugin
+        let config_path = existing_plugin.config_dir.join("pluginConfig.json");
+
+        // Entferne das alte Plugin und starte ein neues
+        plugins.remove(plugin_index);
+        drop(plugins); // Release lock before starting plugin
+
+        // Starte das Plugin neu
+        let new_plugin = self.start_plugin(config_path).await?;
+        self.plugins.lock().await.push(Arc::new(new_plugin));
+
+        info!("Plugin '{}' started successfully", plugin_name);
+        Ok(format!("Plugin '{}' started successfully", plugin_name))
+    }
+
+    pub async fn reload_plugin(&self, plugin_name: &str) -> Result<String, PluginError> {
+        // Stoppe das Plugin
+        self.stop_plugin(plugin_name).await?;
+
+        // Starte das Plugin neu
+        self.start_plugin_by_name(plugin_name).await?;
+
+        info!("Plugin '{}' reloaded successfully", plugin_name);
+        Ok(format!("Plugin '{}' reloaded successfully", plugin_name))
+    }
+
+    pub async fn stop_all_plugins(&self) -> Result<String, PluginError> {
+        let plugins_to_stop: Vec<String> = {
+            let plugins = self.plugins.lock().await;
+            plugins
+                .iter()
+                .filter(|p| p.state == State::Running)
+                .map(|p| p.config.plugin_name.clone())
+                .collect()
+        };
+
+        let mut stopped_count = 0;
+        let mut errors = Vec::new();
+
+        for plugin_name in plugins_to_stop {
+            match self.stop_plugin(&plugin_name).await {
+                Ok(_) => stopped_count += 1,
+                Err(e) => errors.push(format!("{}: {}", plugin_name, e)),
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(format!("Stopped {} plugin(s) successfully", stopped_count))
+        } else {
+            Err(PluginError::ProcessError(format!(
+                "Stopped {} plugin(s), but {} failed: {}",
+                stopped_count,
+                errors.len(),
+                errors.join(", ")
+            )))
+        }
+    }
+
+    pub async fn start_all_plugins(&self) -> Result<String, PluginError> {
+        let plugins_to_start: Vec<String> = {
+            let plugins = self.plugins.lock().await;
+            plugins
+                .iter()
+                .filter(|p| p.state != State::Running)
+                .map(|p| p.config.plugin_name.clone())
+                .collect()
+        };
+
+        let mut started_count = 0;
+        let mut errors = Vec::new();
+
+        for plugin_name in plugins_to_start {
+            match self.start_plugin_by_name(&plugin_name).await {
+                Ok(_) => started_count += 1,
+                Err(e) => errors.push(format!("{}: {}", plugin_name, e)),
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(format!("Started {} plugin(s) successfully", started_count))
+        } else {
+            Ok(format!(
+                "Started {} plugin(s), {} failed: {}",
+                started_count,
+                errors.len(),
+                errors.join(", ")
+            ))
+        }
+    }
+
+    pub async fn reload_all_plugins(&self) -> Result<String, PluginError> {
+        self.stop_all_plugins().await?;
+        self.start_all_plugins().await
     }
 
 }

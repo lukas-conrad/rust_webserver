@@ -159,6 +159,7 @@ impl PluginManager {
         let config_path = existing_plugin.config_dir.join("pluginConfig.json");
 
         // Entferne das alte Plugin und starte ein neues
+        // TODO: Es soll das Plugin nicht removen alla
         plugins.remove(plugin_index);
         drop(plugins); // Release lock before starting plugin
 

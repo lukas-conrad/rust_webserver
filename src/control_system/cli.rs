@@ -1,6 +1,6 @@
 use super::control_system::{ControlSystem, DefaultControlSystem};
 use super::models::CommandRequest;
-use log::{error, info};
+use log::{error};
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 

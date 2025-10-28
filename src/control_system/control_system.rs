@@ -1,6 +1,8 @@
-use super::commands::{HelloCommand, HelpCommand};
+use super::commands::{HelloCommand, HelpCommand, ListPluginsCommand};
 use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
 use std::collections::HashMap;
+use std::sync::Arc;
+use crate::plugin::PluginManager;
 
 pub trait ControlSystem {
     fn run_command(&self, request: CommandRequest) -> CommandResponse;
@@ -16,12 +18,13 @@ pub struct DefaultControlSystem {
 }
 
 impl DefaultControlSystem {
-    pub fn new() -> Self {
+    pub fn new(plugin_manager : Arc<PluginManager>) -> Self {
         let mut system = Self {
             commands: HashMap::new(),
         };
 
         system.register_command(Box::new(HelloCommand));
+        system.register_command(Box::new(ListPluginsCommand::new(plugin_manager)));
         system.register_command(Box::new(HelpCommand::new(system.get_all_command_descriptors())));
 
         system

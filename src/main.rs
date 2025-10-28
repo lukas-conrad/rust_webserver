@@ -41,10 +41,9 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         Err(e) => error!("Error scanning plugins directory: {}", e),
     }
 
-    let server = Arc::new(WebServer::new(plugin_manager));
+    let server = Arc::new(WebServer::new(plugin_manager.clone()));
 
-    // Initialisiere das Control System
-    let control_system = Arc::new(DefaultControlSystem::new());
+    let control_system = Arc::new(DefaultControlSystem::new(plugin_manager.clone()));
     info!("Control System initialized");
 
     // Starte die CLI in einem separaten Thread

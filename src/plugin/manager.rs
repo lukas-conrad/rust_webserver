@@ -1,4 +1,4 @@
-use crate::plugin::interfaces::{Plugin, PluginCommunicator, PluginError, State};
+use crate::plugin::interfaces::{Plugin, PluginError, State};
 use crate::plugin::models::PackageContent::{Error, Log};
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
@@ -100,6 +100,11 @@ impl PluginManager {
             .filter(|p| p.state == State::Running)
             .cloned()
             .collect()
+    }
+
+    pub async fn get_all_plugins(&self) -> Vec<Arc<Plugin>> {
+        let plugins = self.plugins.lock().await;
+        plugins.clone()
     }
 
     pub async fn get_plugin(&self, plugin_name: &str) -> Option<Arc<Plugin>> {

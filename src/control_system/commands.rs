@@ -1,5 +1,8 @@
 use crate::control_system::control_system::Command;
 use crate::control_system::models::{CommandDescriptor, CommandResponse, ParameterDescriptor};
+use crate::plugin::PluginManager;
+use crate::plugin::interfaces::State;
+use std::sync::Arc;
 
 pub struct HelloCommand;
 
@@ -85,3 +88,74 @@ impl Command for HelpCommand {
         )
     }
 }
+
+pub struct ListPluginsCommand {
+    plugin_manager: Arc<PluginManager>,
+}
+
+impl ListPluginsCommand {
+    pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
+        Self { plugin_manager }
+    }
+}
+
+impl Command for ListPluginsCommand {
+    fn execute(&self, _params: Vec<String>) -> CommandResponse {
+        let plugins = if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(async {
+                self.plugin_manager.get_all_plugins().await
+            })
+        } else {
+            match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt.block_on(async {
+                    self.plugin_manager.get_all_plugins().await
+                }),
+                Err(e) => {
+                    return CommandResponse::new(
+                        false,
+                        format!("Failed to create runtime: {}", e)
+                    );
+                }
+            }
+        };
+
+        if plugins.is_empty() {
+            return CommandResponse::new(true, "No plugins found.".to_string());
+        }
+
+        let mut output = String::from("\n=== Plugin List ===\n\n");
+
+        for (index, plugin) in plugins.iter().enumerate() {
+            let state_str = match &plugin.state {
+                State::Running => "Running",
+                State::Starting => "Starting",
+                State::Stopped => "Stopped",
+                State::Error(err) => &format!("Error: {}", err),
+            };
+
+            output.push_str(&format!("{}. {}\n", index + 1, plugin.config.plugin_name));
+            output.push_str(&format!("   State: {}\n", state_str));
+            output.push_str(&format!("   Protocols: {}\n", plugin.config.protocols.join(", ")));
+            output.push_str(&format!("   Startup Command: {}\n", plugin.config.startup_command));
+            output.push_str(&format!("   Max Request Timeout: {}ms\n", plugin.config.max_request_timeout));
+            output.push_str(&format!("   Request Methods: {}\n", plugin.config.request_information.request_methods.join(", ")));
+            output.push_str(&format!("   Hosts: {}\n", plugin.config.request_information.hosts.join(", ")));
+            output.push_str(&format!("   Paths: {}\n", plugin.config.request_information.paths.join(", ")));
+            output.push('\n');
+        }
+
+        output.push_str(&format!("Total: {} plugin(s)\n", plugins.len()));
+        output.push_str("===================\n");
+
+        CommandResponse::new(true, output)
+    }
+
+    fn get_command_descriptor(&self) -> CommandDescriptor {
+        CommandDescriptor::new(
+            "list-plugins".to_string(),
+            "List all plugins with their state and configuration".to_string(),
+            vec![],
+        )
+    }
+}
+

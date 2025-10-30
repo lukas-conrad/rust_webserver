@@ -1,8 +1,12 @@
-use super::commands::{HelloCommand, HelpCommand, ListPluginsCommand, StopPluginCommand, StartPluginCommand, ReloadPluginCommand};
+use super::commands::{
+    HelloCommand, HelpCommand, ListPluginsCommand, ReloadPluginCommand, StartPluginCommand,
+    StopPluginCommand,
+};
 use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
+use crate::plugin::PluginManager;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::plugin::PluginManager;
 
 pub trait ControlSystem {
     fn run_command(&self, request: CommandRequest) -> CommandResponse;
@@ -18,7 +22,7 @@ pub struct DefaultControlSystem {
 }
 
 impl DefaultControlSystem {
-    pub fn new(plugin_manager : Arc<PluginManager>) -> Self {
+    pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
         let mut system = Self {
             commands: HashMap::new(),
         };
@@ -28,11 +32,12 @@ impl DefaultControlSystem {
         system.register_command(Box::new(StopPluginCommand::new(plugin_manager.clone())));
         system.register_command(Box::new(StartPluginCommand::new(plugin_manager.clone())));
         system.register_command(Box::new(ReloadPluginCommand::new(plugin_manager)));
-        system.register_command(Box::new(HelpCommand::new(system.get_all_command_descriptors())));
+        system.register_command(Box::new(HelpCommand::new(
+            system.get_all_command_descriptors(),
+        )));
 
         system
     }
-    
 
     pub fn register_command(&mut self, command: Box<dyn Command>) {
         let descriptor = command.get_command_descriptor();
@@ -48,7 +53,7 @@ impl DefaultControlSystem {
 }
 
 impl ControlSystem for DefaultControlSystem {
-    fn run_command(&self, request: CommandRequest) -> CommandResponse {
+    fn run_command(&self, request: CommandRequest) -> CommandResponse<()> {
         match self.commands.get(&request.name) {
             Some(command) => command.execute(request.args),
             None => CommandResponse::new(false, format!("Command '{}' not found", request.name)),

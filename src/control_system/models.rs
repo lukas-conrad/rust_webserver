@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 pub struct CommandRequest {
     pub name: String,
     pub args: Vec<String>,
@@ -11,11 +13,11 @@ impl CommandRequest {
 
 pub struct CommandResponse {
     pub success: bool,
-    pub message: String,
+    pub message: T,
 }
 
 impl CommandResponse {
-    pub fn new(success: bool, message: String) -> Self {
+    pub fn new(success: bool, message: ) -> Self {
         Self { success, message }
     }
 }
@@ -43,3 +45,4 @@ impl CommandDescriptor {
         Self { name, description, parameters }
     }
 }
+

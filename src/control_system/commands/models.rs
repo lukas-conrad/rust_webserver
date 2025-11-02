@@ -84,6 +84,7 @@ macro_rules! table {
             }
 
             #[derive(Serialize, Deserialize)]
+            #[serde(rename_all = "camelCase")]
             pub struct Column {
                 $(pub $field: $ty), *
             }

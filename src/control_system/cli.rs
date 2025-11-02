@@ -55,10 +55,6 @@ impl CommandLineInterface {
         let request = CommandRequest::new(command_name, args);
         let response = self.control_system.run_command(request);
 
-        if response.success {
-            println!("✓ {}", response.message.to_string());
-        } else {
-            println!("✗ {}", response.message.to_string());
-        }
+        println!("{}", response.message.to_string());
     }
 }

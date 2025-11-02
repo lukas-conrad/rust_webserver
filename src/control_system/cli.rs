@@ -1,6 +1,6 @@
 use super::control_system::{ControlSystem, DefaultControlSystem};
 use super::models::CommandRequest;
-use log::{error};
+use log::error;
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
@@ -26,7 +26,7 @@ impl CommandLineInterface {
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     let line = line.trim();
-                    
+
                     if line.is_empty() {
                         continue;
                     }
@@ -43,24 +43,22 @@ impl CommandLineInterface {
 
     fn process_command(&self, input: &str) {
         let parts: Vec<&str> = input.split_whitespace().collect();
-        
+
         if parts.is_empty() {
             return;
         }
 
         let command_name = parts[0].to_string();
-        
-        // Parse positionale Argumente - alle Teile nach dem Command-Namen
+
         let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
 
         let request = CommandRequest::new(command_name, args);
         let response = self.control_system.run_command(request);
 
         if response.success {
-            println!("✓ {}", response.message);
+            println!("✓ {}", response.message.to_string());
         } else {
-            println!("✗ {}", response.message);
+            println!("✗ {}", response.message.to_string());
         }
     }
 }
-

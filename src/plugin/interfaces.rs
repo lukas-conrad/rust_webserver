@@ -5,10 +5,11 @@ use crate::plugin::models::{
     HandshakeRequest, HandshakeResponse, NormalRequest, NormalResponse, PluginConfig,
 };
 use models::Package;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use strum::Display;
 use tokio::process::Child;
 use tokio::sync::Mutex;
 
@@ -69,7 +70,7 @@ pub trait PluginCommunicator {
     ) -> Result<HandshakeResponse, PackageHandlerError>;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Display, Clone)]
 pub enum State {
     Running,
     Starting,

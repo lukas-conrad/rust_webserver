@@ -1,5 +1,3 @@
-use serde::Serialize;
-
 pub struct CommandRequest {
     pub name: String,
     pub args: Vec<String>,
@@ -11,14 +9,30 @@ impl CommandRequest {
     }
 }
 
+pub trait Message {
+    fn to_string(&self) -> String;
+    fn to_json(&self) -> String;
+}
+
 pub struct CommandResponse {
     pub success: bool,
-    pub message: T,
+    pub message: Box<dyn Message>,
 }
 
 impl CommandResponse {
-    pub fn new(success: bool, message: ) -> Self {
-        Self { success, message }
+    pub fn success(msg: impl Message + 'static) -> Self {
+        CommandResponse::new(true, msg)
+    }
+
+    pub fn fail(msg: impl Message + 'static) -> Self {
+        CommandResponse::new(false, msg)
+    }
+
+    pub fn new(success: bool, msg: impl Message + 'static) -> Self {
+        Self {
+            success,
+            message: Box::new(msg),
+        }
     }
 }
 
@@ -30,7 +44,11 @@ pub struct ParameterDescriptor {
 
 impl ParameterDescriptor {
     pub fn new(name: String, description: String, required: bool) -> Self {
-        Self { name, description, required }
+        Self {
+            name,
+            description,
+            required,
+        }
     }
 }
 
@@ -42,7 +60,10 @@ pub struct CommandDescriptor {
 
 impl CommandDescriptor {
     pub fn new(name: String, description: String, parameters: Vec<ParameterDescriptor>) -> Self {
-        Self { name, description, parameters }
+        Self {
+            name,
+            description,
+            parameters,
+        }
     }
 }
-

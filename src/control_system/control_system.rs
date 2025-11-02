@@ -4,9 +4,9 @@ use super::commands::{
 };
 use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
 use crate::plugin::PluginManager;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::control_system::commands::models::TextMessage;
 
 pub trait ControlSystem {
     fn run_command(&self, request: CommandRequest) -> CommandResponse;
@@ -53,10 +53,13 @@ impl DefaultControlSystem {
 }
 
 impl ControlSystem for DefaultControlSystem {
-    fn run_command(&self, request: CommandRequest) -> CommandResponse<()> {
+    fn run_command(&self, request: CommandRequest) -> CommandResponse {
         match self.commands.get(&request.name) {
             Some(command) => command.execute(request.args),
-            None => CommandResponse::new(false, format!("Command '{}' not found", request.name)),
+            None => CommandResponse::fail(TextMessage::new(format!(
+                "Command '{}' not found",
+                request.name
+            ))),
         }
     }
 }

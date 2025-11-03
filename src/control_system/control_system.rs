@@ -26,56 +26,158 @@ pub enum CommandError {
 
 #[macro_export]
 macro_rules! param {
+    // Helper für required named params
+    (@field_type $ty:ty, true) => { $ty };
+    // Helper für optional named params  
+    (@field_type $ty:ty, false) => { Option<$ty> };
+    
+    // Helper für unwrap von required params
+    (@unwrap_value $value:expr, true) => { $value.unwrap_or_default() };
+    // Helper für optional params (bleiben Option)
+    (@unwrap_value $value:expr, false) => { $value };
+    
+    // Hauptmakro
     (
         $name:ident {
-            $(($field:ident : $ty:ty, $desc:literal, $required:literal, $named:literal)),* $(,)?
+            positional: [
+                $(($pos_field:ident : $pos_ty:ty, $pos_desc:literal)),* $(,)?
+            ],
+            named: [
+                $(($named_field:ident : $named_ty:ty, $named_desc:literal, $named_required:tt, $named_matcher:expr)),* $(,)?
+            ],
+            flags: [
+                $(($flag_field:ident : $flag_ty:ty, $flag_desc:literal, $flag_matcher:expr)),* $(,)?
+            ]
         }
     ) => {
         #[derive(Default)]
         struct $name {
-            $($field: $ty),*
+            $($pos_field: $pos_ty,)*
+            $($named_field: param!(@field_type $named_ty, $named_required),)*
+            $($flag_field: $flag_ty,)*
         }
 
         impl $name {
-
-            #[allow(unused_assignments)]
+            #[allow(unused_assignments, unused_mut, unused_variables)]
             fn parse(params: Vec<String>) -> Result<Self, crate::control_system::control_system::CommandError> {
-                let mut iter = params.iter();
-                let mut index = 0;
+                let mut params_iter = params.iter();
+                let mut positional_index = 0;
 
+                // Parse positional parameters first
                 $(
-                    let $field = if let Some(value_str) = iter.next() {
-                        value_str.parse::<$ty>()
+                    let $pos_field = if let Some(value_str) = params_iter.next() {
+                        value_str.parse::<$pos_ty>()
                             .map_err(|_| crate::control_system::control_system::CommandError::ParseError(
-                                format!("Failed to parse parameter '{}' at position {}: '{}'",
-                                    stringify!($field), index, value_str)
+                                format!("Failed to parse positional parameter '{}' at position {}: '{}'",
+                                    stringify!($pos_field), positional_index, value_str)
                             ))?
                     } else {
-                        let is_required = $required;
-                        if is_required {
-                            return Err(crate::control_system::control_system::CommandError::ParseError(
-                                format!("Required parameter '{}' at position {} is missing",
-                                    stringify!($field), index)
-                            ));
-                        }
-                        <$ty>::default()
+                        return Err(crate::control_system::control_system::CommandError::ParseError(
+                            format!("Required positional parameter '{}' at position {} is missing",
+                                stringify!($pos_field), positional_index)
+                        ));
                     };
-                    index += 1;
+                    positional_index += 1;
+                )*
+
+                // Initialize named and flag parameters with defaults
+                $(let mut $named_field: Option<$named_ty> = None;)*
+                $(let mut $flag_field: $flag_ty = false;)*
+
+                // Parse remaining parameters as named or flags
+                for param_str in params_iter {
+                    let mut matched = false;
+
+                    // Try to match named parameters
+                    $(
+                        if !matched {
+                            let matcher: fn(&str) -> bool = $named_matcher;
+                            if matcher(param_str) {
+                                // Extract value after '='
+                                if let Some(eq_pos) = param_str.find('=') {
+                                    let value_str = &param_str[eq_pos + 1..];
+                                    $named_field = Some(value_str.parse::<$named_ty>()
+                                        .map_err(|_| crate::control_system::control_system::CommandError::ParseError(
+                                            format!("Failed to parse named parameter '{}': '{}'",
+                                                stringify!($named_field), value_str)
+                                        ))?);
+                                    matched = true;
+                                } else {
+                                    return Err(crate::control_system::control_system::CommandError::ParseError(
+                                        format!("Named parameter '{}' requires a value in format '--{}=value'",
+                                            stringify!($named_field), stringify!($named_field))
+                                    ));
+                                }
+                            }
+                        }
+                    )*
+
+                    // Try to match flags
+                    $(
+                        if !matched {
+                            let matcher: fn(&str) -> bool = $flag_matcher;
+                            if matcher(param_str) {
+                                $flag_field = true;
+                                matched = true;
+                            }
+                        }
+                    )*
+
+                    if !matched {
+                        return Err(crate::control_system::control_system::CommandError::ParseError(
+                            format!("Unknown parameter: '{}'", param_str)
+                        ));
+                    }
+                }
+
+                // Check required named parameters
+                $(
+                    let is_required = $named_required;
+                    if is_required && $named_field.is_none() {
+                        return Err(crate::control_system::control_system::CommandError::ParseError(
+                            format!("Required named parameter '{}' is missing", stringify!($named_field))
+                        ));
+                    }
                 )*
 
                 Ok(Self {
-                    $($field),*
+                    $($pos_field,)*
+                    $($named_field: param!(@unwrap_value $named_field, $named_required),)*
+                    $($flag_field,)*
                 })
             }
 
+            #[allow(unused_assignments, unused_mut, unused_variables)]
             fn param_description() -> Vec<ParameterDescriptor> {
-                vec![
-                    $(ParameterDescriptor::new(
-                        stringify!($field).to_string(),
-                        $desc.to_string(),
-                        $required,
-                    ),)*
-                ]
+                let mut params = Vec::new();
+                let mut positional_index = 0;
+                
+                $(
+                    params.push(ParameterDescriptor::new(
+                        format!("[{}] {}", positional_index, stringify!($pos_field)),
+                        $pos_desc.to_string(),
+                        true,
+                    ));
+                    positional_index += 1;
+                )*
+                
+                $(
+                    params.push(ParameterDescriptor::new(
+                        format!("--{}", stringify!($named_field)),
+                        $named_desc.to_string(),
+                        $named_required,
+                    ));
+                )*
+                
+                $(
+                    params.push(ParameterDescriptor::new(
+                        format!("--{}", stringify!($flag_field)),
+                        $flag_desc.to_string(),
+                        false,
+                    ));
+                )*
+                
+                params
             }
         }
 
@@ -85,7 +187,10 @@ macro_rules! param {
             #[allow(dead_code)]
             fn check_traits() {
                 $(
-                    assert_from_str::<$ty>();
+                    assert_from_str::<$pos_ty>();
+                )*
+                $(
+                    assert_from_str::<$named_ty>();
                 )*
             }
         };

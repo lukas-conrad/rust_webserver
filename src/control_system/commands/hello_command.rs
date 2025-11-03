@@ -11,8 +11,20 @@ param! {
             (name: String, "The name to greet (positional parameter)")
         ],
         named: [
-            (greeting: String, "Custom greeting word (e.g., --greeting=Hi)", false, |s: &str| s.starts_with("--greeting=")),
-            (count: u32, "Number of times to repeat the greeting (e.g., --count=3)", false, |s: &str| s.starts_with("--count="))
+            (greeting: String, "Custom greeting word (e.g., --greeting=Hi)", false, 
+                |s: &str| s.starts_with("--greeting="),
+                |s: &str| {
+                    s.find('=')
+                        .map(|pos| s[pos + 1..].to_string())
+                        .ok_or_else(|| "Missing value after '='".to_string())
+                }),
+            (count: u32, "Number of times to repeat the greeting (e.g., --count=3)", false, 
+                |s: &str| s.starts_with("--count="),
+                |s: &str| {
+                    s.find('=')
+                        .and_then(|pos| s[pos + 1..].parse::<u32>().ok())
+                        .ok_or_else(|| format!("Invalid number format: {}", s))
+                })
         ],
         flags: [
             (uppercase: bool, "Convert output to uppercase", |s: &str| s == "--uppercase" || s == "-u"),

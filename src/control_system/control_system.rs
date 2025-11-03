@@ -26,24 +26,19 @@ pub enum CommandError {
 
 #[macro_export]
 macro_rules! param {
-    // Helper für required named params
     (@field_type $ty:ty, true) => { $ty };
-    // Helper für optional named params  
     (@field_type $ty:ty, false) => { Option<$ty> };
     
-    // Helper für unwrap von required params
     (@unwrap_value $value:expr, true) => { $value.unwrap_or_default() };
-    // Helper für optional params (bleiben Option)
     (@unwrap_value $value:expr, false) => { $value };
     
-    // Hauptmakro
     (
         $name:ident {
             positional: [
                 $(($pos_field:ident : $pos_ty:ty, $pos_desc:literal)),* $(,)?
             ],
             named: [
-                $(($named_field:ident : $named_ty:ty, $named_desc:literal, $named_required:tt, $named_matcher:expr)),* $(,)?
+                $(($named_field:ident : $named_ty:ty, $named_desc:literal, $named_required:tt, $named_matcher:expr, $named_parser:expr)),* $(,)?
             ],
             flags: [
                 $(($flag_field:ident : $flag_ty:ty, $flag_desc:literal, $flag_matcher:expr)),* $(,)?
@@ -93,20 +88,18 @@ macro_rules! param {
                         if !matched {
                             let matcher: fn(&str) -> bool = $named_matcher;
                             if matcher(param_str) {
-                                // Extract value after '='
-                                if let Some(eq_pos) = param_str.find('=') {
-                                    let value_str = &param_str[eq_pos + 1..];
-                                    $named_field = Some(value_str.parse::<$named_ty>()
-                                        .map_err(|_| crate::control_system::control_system::CommandError::ParseError(
-                                            format!("Failed to parse named parameter '{}': '{}'",
-                                                stringify!($named_field), value_str)
-                                        ))?);
-                                    matched = true;
-                                } else {
-                                    return Err(crate::control_system::control_system::CommandError::ParseError(
-                                        format!("Named parameter '{}' requires a value in format '--{}=value'",
-                                            stringify!($named_field), stringify!($named_field))
-                                    ));
+                                let parser: fn(&str) -> Result<$named_ty, String> = $named_parser;
+                                match parser(param_str) {
+                                    Ok(value) => {
+                                        $named_field = Some(value);
+                                        matched = true;
+                                    }
+                                    Err(err_msg) => {
+                                        return Err(crate::control_system::control_system::CommandError::ParseError(
+                                            format!("Failed to parse named parameter '{}': {}",
+                                                stringify!($named_field), err_msg)
+                                        ));
+                                    }
                                 }
                             }
                         }

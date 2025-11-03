@@ -3,10 +3,12 @@ use super::commands::{
     StopPluginCommand,
 };
 use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
+use crate::control_system::commands::models::TextMessage;
 use crate::plugin::PluginManager;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::control_system::commands::models::TextMessage;
+use strum::Display;
+use thiserror::Error;
 
 pub trait ControlSystem {
     fn run_command(&self, request: CommandRequest) -> CommandResponse;
@@ -15,6 +17,79 @@ pub trait ControlSystem {
 pub trait Command: Send + Sync {
     fn execute(&self, params: Vec<String>) -> CommandResponse;
     fn get_command_descriptor(&self) -> CommandDescriptor;
+}
+
+#[derive(Debug, Display, Error)]
+pub enum CommandError {
+    ParseError(String),
+}
+
+#[macro_export]
+macro_rules! param {
+    (
+        $name:ident {
+            $(($field:ident : $ty:ty, $desc:literal, $required:literal, $named:literal)),* $(,)?
+        }
+    ) => {
+        #[derive(Default)]
+        struct $name {
+            $($field: $ty),*
+        }
+
+        impl $name {
+
+            #[allow(unused_assignments)]
+            fn parse(params: Vec<String>) -> Result<Self, crate::control_system::control_system::CommandError> {
+                let mut iter = params.iter();
+                let mut index = 0;
+
+                $(
+                    let $field = if let Some(value_str) = iter.next() {
+                        value_str.parse::<$ty>()
+                            .map_err(|_| crate::control_system::control_system::CommandError::ParseError(
+                                format!("Failed to parse parameter '{}' at position {}: '{}'",
+                                    stringify!($field), index, value_str)
+                            ))?
+                    } else {
+                        let is_required = $required;
+                        if is_required {
+                            return Err(crate::control_system::control_system::CommandError::ParseError(
+                                format!("Required parameter '{}' at position {} is missing",
+                                    stringify!($field), index)
+                            ));
+                        }
+                        <$ty>::default()
+                    };
+                    index += 1;
+                )*
+
+                Ok(Self {
+                    $($field),*
+                })
+            }
+
+            fn param_description() -> Vec<ParameterDescriptor> {
+                vec![
+                    $(ParameterDescriptor::new(
+                        stringify!($field).to_string(),
+                        $desc.to_string(),
+                        $required,
+                    ),)*
+                ]
+            }
+        }
+
+        const _: () = {
+            fn assert_from_str<T: std::str::FromStr>() {}
+
+            #[allow(dead_code)]
+            fn check_traits() {
+                $(
+                    assert_from_str::<$ty>();
+                )*
+            }
+        };
+    };
 }
 
 pub struct DefaultControlSystem {

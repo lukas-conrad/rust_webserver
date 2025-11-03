@@ -1,8 +1,8 @@
+use crate::control_system::commands::models::TextMessage;
 use crate::control_system::control_system::Command;
 use crate::control_system::models::{CommandDescriptor, CommandResponse, ParameterDescriptor};
 use crate::plugin::PluginManager;
 use std::sync::Arc;
-use crate::control_system::commands::models::TextMessage;
 
 pub struct StartPluginCommand {
     plugin_manager: Arc<PluginManager>,
@@ -17,9 +17,9 @@ impl StartPluginCommand {
 impl Command for StartPluginCommand {
     fn execute(&self, params: Vec<String>) -> CommandResponse {
         if params.is_empty() {
-            return CommandResponse::fail(
-                TextMessage::new("Missing required parameter: plugin_name (or 'all')".to_string())
-            );
+            return CommandResponse::fail(TextMessage::new(
+                "Missing required parameter: plugin_name (or 'all')".to_string(),
+            ));
         }
 
         let plugin_name = &params[0];
@@ -42,27 +42,32 @@ impl Command for StartPluginCommand {
                     }
                 }),
                 Err(e) => {
-                    return CommandResponse::fail(TextMessage::new(format!("Failed to create runtime: {}", e)));
+                    return CommandResponse::fail(TextMessage::new(format!(
+                        "Failed to create runtime: {}",
+                        e
+                    )));
                 }
             }
         };
 
         match result {
             Ok(msg) => CommandResponse::success(TextMessage::new(msg)),
-            Err(e) => CommandResponse::fail(TextMessage::new(format!("Failed to start plugin: {}", e))),
+            Err(e) => {
+                CommandResponse::fail(TextMessage::new(format!("Failed to start plugin: {}", e)))
+            }
         }
     }
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "start-plugin".to_string(),
-            "Start a stopped plugin or all stopped/error plugins".to_string(),
+            "start-plugin",
+            "Start a stopped plugin or all stopped/error plugins",
             vec![ParameterDescriptor::new(
                 "plugin_name".to_string(),
-                "Name of the plugin to start, or 'all' to start all stopped/error plugins".to_string(),
+                "Name of the plugin to start, or 'all' to start all stopped/error plugins"
+                    .to_string(),
                 true,
             )],
         )
     }
 }
-

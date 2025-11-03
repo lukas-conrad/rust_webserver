@@ -17,9 +17,9 @@ impl StopPluginCommand {
 impl Command for StopPluginCommand {
     fn execute(&self, params: Vec<String>) -> CommandResponse {
         if params.is_empty() {
-            return CommandResponse::fail(
-                TextMessage::new("Missing required parameter: plugin_name (or 'all')".to_string())
-            );
+            return CommandResponse::fail(TextMessage::new(
+                "Missing required parameter: plugin_name (or 'all')".to_string(),
+            ));
         }
 
         let plugin_name = &params[0];
@@ -42,21 +42,26 @@ impl Command for StopPluginCommand {
                     }
                 }),
                 Err(e) => {
-                    return CommandResponse::fail(TextMessage::new(format!("Failed to create runtime: {}", e)));
+                    return CommandResponse::fail(TextMessage::new(format!(
+                        "Failed to create runtime: {}",
+                        e
+                    )));
                 }
             }
         };
 
         match result {
             Ok(msg) => CommandResponse::success(TextMessage::new(msg)),
-            Err(e) => CommandResponse::fail(TextMessage::new(format!("Failed to stop plugin: {}", e))),
+            Err(e) => {
+                CommandResponse::fail(TextMessage::new(format!("Failed to stop plugin: {}", e)))
+            }
         }
     }
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "stop-plugin".to_string(),
-            "Stop a running plugin or all running plugins".to_string(),
+            "stop-plugin",
+            "Stop a running plugin or all running plugins",
             vec![ParameterDescriptor::new(
                 "plugin_name".to_string(),
                 "Name of the plugin to stop, or 'all' to stop all running plugins".to_string(),
@@ -65,4 +70,3 @@ impl Command for StopPluginCommand {
         )
     }
 }
-

@@ -53,8 +53,8 @@ impl Command for HelpCommand {
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "help".to_string(),
-            "Display all available commands and their descriptions".to_string(),
+            "help",
+            "Display all available commands and their descriptions",
             vec![],
         )
     }

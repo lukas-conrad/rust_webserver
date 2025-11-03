@@ -62,8 +62,8 @@ impl Command for ListPluginsCommand {
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "list-plugins".to_string(),
-            "List all plugins with their state and configuration".to_string(),
+            "list-plugins",
+            "List all plugins with their state and configuration",
             vec![],
         )
     }

@@ -59,10 +59,10 @@ pub struct CommandDescriptor {
 }
 
 impl CommandDescriptor {
-    pub fn new(name: String, description: String, parameters: Vec<ParameterDescriptor>) -> Self {
+    pub fn new(name: &str, description: &str, parameters: Vec<ParameterDescriptor>) -> Self {
         Self {
-            name,
-            description,
+            name: name.to_string(),
+            description: description.to_string(),
             parameters,
         }
     }

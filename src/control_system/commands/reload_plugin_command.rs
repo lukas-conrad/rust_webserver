@@ -61,8 +61,8 @@ impl Command for ReloadPluginCommand {
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "reload-plugin".to_string(),
-            "Reload a plugin (stop and start) or all plugins".to_string(),
+            "reload-plugin",
+            "Reload a plugin (stop and start) or all plugins",
             vec![ParameterDescriptor::new(
                 "plugin_name".to_string(),
                 "Name of the plugin to reload, or 'all' to reload all plugins".to_string(),

@@ -94,6 +94,7 @@ macro_rules! table {
                 fn assert_display<T: Display>() {}
                 fn assert_deserialize<T: for<'de> Deserialize<'de>>() {}
 
+                #[allow(dead_code)]
                 fn check_traits() {
                     $(
                         assert_serialize::<$ty>();

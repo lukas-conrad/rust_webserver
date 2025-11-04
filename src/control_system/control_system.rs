@@ -26,13 +26,6 @@ pub enum CommandError {
 
 
 #[macro_export]
-macro_rules! positional {
-    ($pos_field:ident : $pos_ty:ty, $pos_desc:literal) => {
-        ($pos_field : $pos_ty, $pos_desc)
-    };
-}
-
-#[macro_export]
 macro_rules! param {
     (@field_type $ty:ty, true) => { $ty };
     (@field_type $ty:ty, false) => { Option<$ty> };
@@ -46,10 +39,10 @@ macro_rules! param {
                 $(($pos_field:ident : $pos_ty:ty, $pos_desc:literal)),* $(,)?
             ],
             named: [
-                $(($named_field:ident : $named_ty:ty, $named_desc:literal, $named_required:tt, $named_matcher:expr, $named_parser:expr)),* $(,)?
+                $(($named_field:ident : $named_ty:ty, $named_desc:literal, $named_required:tt)),* $(,)?
             ],
             flags: [
-                $(($flag_field:ident : $flag_ty:ty, $flag_desc:literal, $flag_matcher:expr)),* $(,)?
+                $(($flag_field:ident : $flag_ty:ty, $flag_desc:literal)),* $(,)?
             ]
         }
     ) => {
@@ -94,10 +87,14 @@ macro_rules! param {
                     // Try to match named parameters
                     $(
                         if !matched {
-                            let matcher: fn(&str) -> bool = $named_matcher;
-                            if matcher(param_str) {
-                                let parser: fn(&str) -> Result<$named_ty, String> = $named_parser;
-                                match parser(param_str) {
+                            // Auto-generated matcher: checks if string starts with "--field_name="
+                            let param_prefix = concat!("--", stringify!($named_field), "=");
+                            if param_str.starts_with(param_prefix) {
+                                // Auto-generated parser: extracts value after "=" and parses it
+                                match param_str.find('=')
+                                    .and_then(|pos| param_str[pos + 1..].parse::<$named_ty>().ok())
+                                    .ok_or_else(|| format!("Invalid value for parameter '--{}'", stringify!($named_field)))
+                                {
                                     Ok(value) => {
                                         $named_field = Some(value);
                                         matched = true;
@@ -116,8 +113,8 @@ macro_rules! param {
                     // Try to match flags
                     $(
                         if !matched {
-                            let matcher: fn(&str) -> bool = $flag_matcher;
-                            if matcher(param_str) {
+                            let flag_name = concat!("--", stringify!($flag_field));
+                            if param_str.eq(flag_name) {
                                 $flag_field = true;
                                 matched = true;
                             }

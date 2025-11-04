@@ -24,6 +24,14 @@ pub enum CommandError {
     ParseError(String),
 }
 
+
+#[macro_export]
+macro_rules! positional {
+    ($pos_field:ident : $pos_ty:ty, $pos_desc:literal) => {
+        ($pos_field : $pos_ty, $pos_desc)
+    };
+}
+
 #[macro_export]
 macro_rules! param {
     (@field_type $ty:ty, true) => { $ty };

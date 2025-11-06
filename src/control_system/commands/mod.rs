@@ -4,7 +4,7 @@ mod list_plugins_command;
 mod stop_plugin_command;
 mod start_plugin_command;
 mod reload_plugin_command;
-pub(crate) mod models;
+pub mod models;
 
 pub use hello_command::HelloCommand;
 pub use help_command::HelpCommand;

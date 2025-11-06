@@ -24,6 +24,46 @@ pub enum CommandError {
     ParseError(String),
 }
 
+// Helper functions for parameter parsing
+#[doc(hidden)]
+pub mod param_helpers {
+    use super::CommandError;
+    use std::str::FromStr;
+
+    pub fn parse_positional<T: FromStr>(
+        value_str: &str,
+        field_name: &str,
+        position: usize,
+    ) -> Result<T, CommandError> {
+        value_str.parse::<T>().map_err(|_| {
+            CommandError::ParseError(format!(
+                "Failed to parse positional parameter '{}' at position {}: '{}'",
+                field_name, position, value_str
+            ))
+        })
+    }
+
+    pub fn parse_named<T: FromStr>(
+        param_str: &str,
+        field_name: &str,
+        prefix: &str,
+    ) -> Result<Option<T>, CommandError> {
+        if param_str.starts_with(prefix) {
+            let value = param_str
+                .find('=')
+                .and_then(|pos| param_str[pos + 1..].parse::<T>().ok())
+                .ok_or_else(|| {
+                    CommandError::ParseError(format!(
+                        "Invalid value for parameter '--{}'",
+                        field_name
+                    ))
+                })?;
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
+    }
+}
 
 #[macro_export]
 macro_rules! param {
@@ -62,16 +102,17 @@ macro_rules! param {
                 // Parse positional parameters first
                 $($(
                     let $pos_field = if let Some(value_str) = params_iter.next() {
-                        value_str.parse::<$pos_ty>()
-                            .map_err(|_| crate::control_system::control_system::CommandError::ParseError(
-                                format!("Failed to parse positional parameter '{}' at position {}: '{}'",
-                                    stringify!($pos_field), positional_index, value_str)
-                            ))?
+                        crate::control_system::control_system::param_helpers::parse_positional::<$pos_ty>(
+                            value_str,
+                            stringify!($pos_field),
+                            positional_index
+                        )?
                     } else {
-                        return Err(crate::control_system::control_system::CommandError::ParseError(
-                            format!("Required positional parameter '{}' at position {} is missing",
-                                stringify!($pos_field), positional_index)
-                        ));
+                        return Err(crate::control_system::control_system::CommandError::ParseError(format!(
+                                "Required positional parameter '{}' at position {} is missing",
+                                stringify!($pos_field), positional_index
+                            ))
+                        );
                     };
                     positional_index += 1;
                 )*)?
@@ -87,25 +128,14 @@ macro_rules! param {
                     // Try to match named parameters
                     $($(
                         if !matched {
-                            // Auto-generated matcher: checks if string starts with "--field_name="
                             let param_prefix = concat!("--", stringify!($named_field), "=");
-                            if param_str.starts_with(param_prefix) {
-                                // Auto-generated parser: extracts value after "=" and parses it
-                                match param_str.find('=')
-                                    .and_then(|pos| param_str[pos + 1..].parse::<$named_ty>().ok())
-                                    .ok_or_else(|| format!("Invalid value for parameter '--{}'", stringify!($named_field)))
-                                {
-                                    Ok(value) => {
-                                        $named_field = Some(value);
-                                        matched = true;
-                                    }
-                                    Err(err_msg) => {
-                                        return Err(crate::control_system::control_system::CommandError::ParseError(
-                                            format!("Failed to parse named parameter '{}': {}",
-                                                stringify!($named_field), err_msg)
-                                        ));
-                                    }
-                                }
+                            if let Some(value) = crate::control_system::control_system::param_helpers::parse_named::<$named_ty>(
+                                param_str,
+                                stringify!($named_field),
+                                param_prefix
+                            )? {
+                                $named_field = Some(value);
+                                matched = true;
                             }
                         }
                     )*)?
@@ -114,7 +144,7 @@ macro_rules! param {
                     $($(
                         if !matched {
                             let flag_name = concat!("--", stringify!($flag_field));
-                            if param_str.eq(flag_name) {
+                            if param_str == flag_name {
                                 $flag_field = true;
                                 matched = true;
                             }
@@ -122,9 +152,7 @@ macro_rules! param {
                     )*)?
 
                     if !matched {
-                        return Err(crate::control_system::control_system::CommandError::ParseError(
-                            format!("Unknown parameter: '{}'", param_str)
-                        ));
+                        return Err(crate::control_system::control_system::CommandError::ParseError(format!("Unknown parameter: '{}'", param_str)));
                     }
                 }
 

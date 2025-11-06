@@ -35,22 +35,22 @@ macro_rules! param {
     
     (
         $name:ident {
-            positional: [
+            $(positional: [
                 $(($pos_field:ident : $pos_ty:ty, $pos_desc:literal)),* $(,)?
-            ],
-            named: [
+            ],)?
+            $(named: [
                 $(($named_field:ident : $named_ty:ty, $named_desc:literal, $named_required:tt)),* $(,)?
-            ],
-            flags: [
+            ],)?
+            $(flags: [
                 $(($flag_field:ident : $flag_ty:ty, $flag_desc:literal)),* $(,)?
-            ]
+            ])?
         }
     ) => {
         #[derive(Default)]
         struct $name {
-            $($pos_field: $pos_ty,)*
-            $($named_field: param!(@field_type $named_ty, $named_required),)*
-            $($flag_field: $flag_ty,)*
+            $($($pos_field: $pos_ty,)*)?
+            $($($named_field: param!(@field_type $named_ty, $named_required),)*)?
+            $($($flag_field: $flag_ty,)*)?
         }
 
         impl $name {
@@ -60,7 +60,7 @@ macro_rules! param {
                 let mut positional_index = 0;
 
                 // Parse positional parameters first
-                $(
+                $($(
                     let $pos_field = if let Some(value_str) = params_iter.next() {
                         value_str.parse::<$pos_ty>()
                             .map_err(|_| crate::control_system::control_system::CommandError::ParseError(
@@ -74,18 +74,18 @@ macro_rules! param {
                         ));
                     };
                     positional_index += 1;
-                )*
+                )*)?
 
                 // Initialize named and flag parameters with defaults
-                $(let mut $named_field: Option<$named_ty> = None;)*
-                $(let mut $flag_field: $flag_ty = false;)*
+                $($(let mut $named_field: Option<$named_ty> = None;)*)?
+                $($(let mut $flag_field: $flag_ty = false;)*)?
 
                 // Parse remaining parameters as named or flags
                 for param_str in params_iter {
                     let mut matched = false;
 
                     // Try to match named parameters
-                    $(
+                    $($(
                         if !matched {
                             // Auto-generated matcher: checks if string starts with "--field_name="
                             let param_prefix = concat!("--", stringify!($named_field), "=");
@@ -108,10 +108,10 @@ macro_rules! param {
                                 }
                             }
                         }
-                    )*
+                    )*)?
 
                     // Try to match flags
-                    $(
+                    $($(
                         if !matched {
                             let flag_name = concat!("--", stringify!($flag_field));
                             if param_str.eq(flag_name) {
@@ -119,7 +119,7 @@ macro_rules! param {
                                 matched = true;
                             }
                         }
-                    )*
+                    )*)?
 
                     if !matched {
                         return Err(crate::control_system::control_system::CommandError::ParseError(
@@ -129,19 +129,19 @@ macro_rules! param {
                 }
 
                 // Check required named parameters
-                $(
+                $($(
                     let is_required = $named_required;
                     if is_required && $named_field.is_none() {
                         return Err(crate::control_system::control_system::CommandError::ParseError(
                             format!("Required named parameter '{}' is missing", stringify!($named_field))
                         ));
                     }
-                )*
+                )*)?
 
                 Ok(Self {
-                    $($pos_field,)*
-                    $($named_field: param!(@unwrap_value $named_field, $named_required),)*
-                    $($flag_field,)*
+                    $($($pos_field,)*)?
+                    $($($named_field: param!(@unwrap_value $named_field, $named_required),)*)?
+                    $($($flag_field,)*)?
                 })
             }
 
@@ -150,30 +150,30 @@ macro_rules! param {
                 let mut params = Vec::new();
                 let mut positional_index = 0;
                 
-                $(
+                $($(
                     params.push(ParameterDescriptor::new(
                         format!("[{}] {}", positional_index, stringify!($pos_field)),
                         $pos_desc.to_string(),
                         true,
                     ));
                     positional_index += 1;
-                )*
+                )*)?
                 
-                $(
+                $($(
                     params.push(ParameterDescriptor::new(
                         format!("--{}", stringify!($named_field)),
                         $named_desc.to_string(),
                         $named_required,
                     ));
-                )*
+                )*)?
                 
-                $(
+                $($(
                     params.push(ParameterDescriptor::new(
                         format!("--{}", stringify!($flag_field)),
                         $flag_desc.to_string(),
                         false,
                     ));
-                )*
+                )*)?
                 
                 params
             }
@@ -184,12 +184,12 @@ macro_rules! param {
 
             #[allow(dead_code)]
             fn check_traits() {
-                $(
+                $($(
                     assert_from_str::<$pos_ty>();
-                )*
-                $(
+                )*)?
+                $($(
                     assert_from_str::<$named_ty>();
-                )*
+                )*)?
             }
         };
     };

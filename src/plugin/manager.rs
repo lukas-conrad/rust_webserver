@@ -1,6 +1,5 @@
 use crate::plugin::interfaces::{Plugin, PluginError, State};
-use crate::plugin::models::PackageContent::{Error, Log};
-use crate::plugin::models::PluginConfig;
+use crate::plugin::models::Package::{Error, Log};
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

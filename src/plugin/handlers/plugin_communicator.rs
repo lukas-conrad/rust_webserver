@@ -1,10 +1,9 @@
 use crate::plugin::interfaces::{PackageHandlerError, PluginCommunicator};
 use crate::plugin::models::{
-    HandshakeRequest, HandshakeResponse, NormalRequest, NormalResponse, Package, PackageContent,
+    PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse, PackageGen, Package,
     PackageType, PluginConfig,
 };
 use crate::plugin::PackageHandler;
-use hyper::Response;
 use log::{error, info};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -13,12 +12,12 @@ use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
 
-pub type CallbackFn = Box<dyn Fn(PackageContent) + Send + Sync + 'static>;
+pub type CallbackFn = Box<dyn Fn(Package) + Send + Sync + 'static>;
 
 pub struct AsyncPluginCommunicator {
     package_handler: Box<dyn PackageHandler>,
-    waiting_handles: Arc<Mutex<HashMap<i64, oneshot::Sender<NormalResponse>>>>,
-    handshake_request: Arc<Mutex<Option<oneshot::Sender<HandshakeResponse>>>>,
+    waiting_handles: Arc<Mutex<HashMap<i64, oneshot::Sender<PackageNormalResponse>>>>,
+    handshake_request: Arc<Mutex<Option<oneshot::Sender<PackageHandshakeResponse>>>>,
     pub plugin_config: Arc<PluginConfig>,
 }
 
@@ -51,35 +50,35 @@ impl AsyncPluginCommunicator {
                 let handles_clone = waiting_handles_clone.clone();
                 let handshake_request_clone = handshake_request.clone();
                 // info!("Received package: {}", String::from_utf8_lossy(bytes));
-                let res = serde_json::from_slice::<PackageContent>(bytes);
+                let res = serde_json::from_slice::<Package>(bytes);
                 match res {
                     Ok(package) => {
-                        if matches!(package, PackageContent::Response(_)) {
-                            if let PackageContent::Response(content) = package {
+                        if matches!(package, Package::NormalResponse(_)) {
+                            if let Package::NormalResponse(content) = package {
                                 let package_id = content.package_id;
 
                                 tokio::spawn(async move {
                                     let mut map = handles_clone.lock().await;
                                     if let Some(sender) = map.remove(&package_id) {
-                                        let response = NormalResponse {
-                                            package_type: PackageType::Response,
+                                        let response = PackageNormalResponse {
+                                            package_type: PackageType::NormalResponse,
                                             content,
                                         };
                                         let _ = sender.send(response);
                                     }
                                 });
                             }
-                        } else if matches!(package, PackageContent::StartupResponse(_))
-                            || matches!(package, PackageContent::Startup(_))
+                        } else if matches!(package, Package::HandshakeResponse(_))
+                            || matches!(package, Package::HandshakeRequest(_))
                         {
                             let package_content = package.clone();
-                            if let PackageContent::StartupResponse(content) = package_content {
+                            if let Package::HandshakeResponse(content) = package_content {
                                 tokio::spawn(async move {
                                     if let Some(sender) =
                                         handshake_request_clone.lock().await.take()
                                     {
-                                        let _ = sender.send(Package {
-                                            package_type: PackageType::StartupResponse,
+                                        let _ = sender.send(PackageGen {
+                                            package_type: PackageType::HandshakeResponse,
                                             content,
                                         });
                                     }
@@ -112,9 +111,9 @@ impl AsyncPluginCommunicator {
 impl PluginCommunicator for AsyncPluginCommunicator {
     async fn send_request(
         &self,
-        package: NormalRequest,
-    ) -> Result<NormalResponse, PackageHandlerError> {
-        let (sender, receiver) = oneshot::channel::<NormalResponse>();
+        package: PackageNormalRequest,
+    ) -> Result<PackageNormalResponse, PackageHandlerError> {
+        let (sender, receiver) = oneshot::channel::<PackageNormalResponse>();
 
         let package_id = package.content.package_id;
         // info!("Sending request package with ID {}", package_id);
@@ -158,7 +157,7 @@ impl PluginCommunicator for AsyncPluginCommunicator {
         }
     }
 
-    fn send_package<T: Serialize>(&self, package: Package<T>) -> Result<(), PackageHandlerError> {
+    fn send_package<T: Serialize>(&self, package: PackageGen<T>) -> Result<(), PackageHandlerError> {
         let json_string = serde_json::to_string(&package)
             .map_err(|e| PackageHandlerError::SerializationError(e.to_string()))?;
 
@@ -168,20 +167,20 @@ impl PluginCommunicator for AsyncPluginCommunicator {
 
     async fn send_handshake(
         &self,
-        package: HandshakeRequest,
-    ) -> Result<HandshakeResponse, PackageHandlerError> {
+        package: PackageHandshakeRequest,
+    ) -> Result<PackageHandshakeResponse, PackageHandlerError> {
         info!(
             "Sending handshake request to plugin {}",
             self.plugin_config.plugin_name
         );
-        let (sender, receiver) = oneshot::channel::<HandshakeResponse>();
+        let (sender, receiver) = oneshot::channel::<PackageHandshakeResponse>();
 
         let _ = self.handshake_request.lock().await.insert(sender);
 
         self.send_package(package)?;
 
-        let timout = self.plugin_config.max_startup_time;
-        match timeout(Duration::from_millis(timout), receiver).await {
+        let timeout_duration = self.plugin_config.max_startup_time;
+        match timeout(Duration::from_millis(timeout_duration), receiver).await {
             Ok(result) => {
                 match result {
                     Ok(response) => {
@@ -202,13 +201,13 @@ impl PluginCommunicator for AsyncPluginCommunicator {
             Err(_) => {
                 info!(
                     "Timeout while handshaking with plugin {} after {}ms",
-                    self.plugin_config.plugin_name, timout
+                    self.plugin_config.plugin_name, timeout_duration
                 );
                 let _ = self.handshake_request.lock().await.take();
 
                 Err(PackageHandlerError::SendingFailed(format!(
                     "Timeout after {}ms waiting for response for package",
-                    timout,
+                    timeout_duration,
                 )))
             }
         }

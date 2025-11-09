@@ -1,5 +1,4 @@
-use serde::de::{self};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::{Display, EnumString};
 
@@ -56,21 +55,21 @@ pub struct ErrorLog {
     pub error_details: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
-#[serde(rename_all = "camelCase")]
-pub enum PackageType {
-    Startup,
-    StartupResponse,
-    Response,
-    Request,
-    Shutdown,
-    Error,
-    Log,
-}
+// #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
+// #[serde(rename_all = "camelCase")]
+// pub enum PackageType {
+//     Startup,
+//     StartupResponse,
+//     Response,
+//     Request,
+//     Shutdown,
+//     Error,
+//     Log,
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Package<T> {
+pub struct PackageGen<T> {
     pub package_type: PackageType,
     pub content: T,
 }
@@ -117,30 +116,90 @@ pub struct LogContent {
     pub message: String,
 }
 
-pub type HandshakeRequest = Package<HandshakeRequestContent>;
-pub type HandshakeResponse = Package<HandshakeResponseContent>;
-pub type NormalRequest = Package<NormalRequestContent>;
-pub type NormalResponse = Package<NormalResponseContent>;
-pub type ErrorReport = Package<ErrorReportContent>;
-pub type LogMessage = Package<LogContent>;
-pub type ShutdownRequest = Package<HashMap<String, String>>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "packageType", content = "content", rename_all = "camelCase")]
-pub enum PackageContent {
-    Startup(HandshakeRequestContent),
-    StartupResponse(HandshakeResponseContent),
-    Request(NormalRequestContent),
-    Response(NormalResponseContent),
+// Macro to generate PackageType, Package, and type aliases
+macro_rules! package {
+    (
+        $(
+            $variant:ident($content_type:ty)
+        ),* $(,)?
+    ) => {
+        // Generate PackageType enum
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
+        #[serde(rename_all = "camelCase")]
+        pub enum PackageType {
+            $(
+                $variant,
+            )*
+        }
+
+        // Generate Package enum
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[serde(tag = "packageType", content = "content", rename_all = "camelCase")]
+        pub enum Package {
+            $(
+                $variant($content_type),
+            )*
+        }
+
+        // Generate type aliases for Package<T>
+        $(
+            paste::paste! {
+                pub type [<Package $variant>] = PackageGen<$content_type>;
+            }
+        )*
+
+        // Implement methods to convert Package<T> to Package
+        impl Package {
+            pub fn package_type(&self) -> PackageType {
+                match self {
+                    $(
+                        Package::$variant(_) => PackageType::$variant,
+                    )*
+                }
+            }
+        }
+
+        // // Implement From<Package<T>> for Package for each type
+        // $(
+        //     impl From<Package<$content_type>> for Package {
+        //         fn from(package: Package<$content_type>) -> Self {
+        //             package.content
+        //         }
+        //     }
+        // )*
+
+        // Implement methods to get Package variant from Package<T>
+        $(
+                impl PackageGen<$content_type> {
+                    pub fn to_content(self) -> Package {
+                        Package::$variant(self.content)
+                    }
+
+                    pub fn package_type(&self) -> PackageType {
+                        PackageType::$variant
+                    }
+                }
+        )*
+    };
+}
+
+// Generate PackageType, Package, and type aliases using macro
+package! {
+    HandshakeRequest(HandshakeRequestContent),
+    HandshakeResponse(HandshakeResponseContent),
+    NormalRequest(NormalRequestContent),
+    NormalResponse(NormalResponseContent),
     Error(ErrorReportContent),
     Log(LogContent),
-    Shutdown(HashMap<String, String>),
+    ShutdownRequest(HashMap<String, String>),
 }
+
 
 // #[derive(Debug, Clone, Serialize)]
 // pub struct GenericPackage {
 //     pub package_type: PackageType,
-//     pub content: PackageContent,
+//     pub content: Package,
 // }
 
 // impl<'de> Deserialize<'de> for GenericPackage {
@@ -160,54 +219,54 @@ pub enum PackageContent {
 //         let content = match helper.package_type {
 //             PackageType::Startup => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::Startup(content)
+//                     Package::Startup(content)
 //                 } else {
 //                     return Err(de::Error::custom("Invalid startup content"));
 //                 }
 //             }
 //             PackageType::StartupResponse => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::StartupResponse(content)
+//                     Package::StartupResponse(content)
 //                 } else {
 //                     return Err(de::Error::custom("Invalid startup response content"));
 //                 }
 //             }
 //             PackageType::Response => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::Response(content)
+//                     Package::Response(content)
 //                 } else {
 //                     return Err(de::Error::custom("Invalid response content"));
 //                 }
 //             }
 //             PackageType::Request => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::Request(content)
+//                     Package::Request(content)
 //                 } else {
 //                     return Err(de::Error::custom("Invalid request content"));
 //                 }
 //             }
 //             PackageType::Shutdown => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::Shutdown(content)
+//                     Package::Shutdown(content)
 //                 } else {
-//                     PackageContent::Shutdown(HashMap::new())
+//                     Package::Shutdown(HashMap::new())
 //                 }
 //             }
 //             PackageType::Error => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::Error(content)
+//                     Package::Error(content)
 //                 } else {
 //                     return Err(de::Error::custom("Invalid error content"));
 //                 }
 //             }
 //             PackageType::Log => {
 //                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     PackageContent::Log(content)
+//                     Package::Log(content)
 //                 } else {
 //                     return Err(de::Error::custom("Invalid log content"));
 //                 }
 //             }
-//             PackageType::Unknown => PackageContent::Unknown(helper.content),
+//             PackageType::Unknown => Package::Unknown(helper.content),
 //         };
 //
 //         Ok(GenericPackage {
@@ -219,8 +278,7 @@ pub enum PackageContent {
 
 #[cfg(test)]
 mod tests {
-    use crate::plugin::models::PackageType::Error;
-use super::*;
+    use super::*;
     use serde_json;
     use std::collections::HashMap;
 
@@ -229,24 +287,24 @@ use super::*;
         let content = HandshakeRequestContent {
             protocol: "json".to_string(),
         };
-        let package = Package {
-            package_type: PackageType::Startup,
+        let package = PackageGen {
+            package_type: PackageType::HandshakeRequest,
             content,
         };
 
         let json = serde_json::to_string(&package).unwrap();
-        let expected = r#"{"packageType":"startup","content":{"protocol":"json"}}"#;
+        let expected = r#"{"packageType":"handshakeRequest","content":{"protocol":"json"}}"#;
 
         assert_eq!(json, expected);
     }
 
     #[test]
     fn test_handshake_request_deserialization() {
-        let json = r#"{"packageType":"startup","content":{"protocol":"json"}}"#;
+        let json = r#"{"packageType":"handshakeRequest","content":{"protocol":"json"}}"#;
 
-        let package: HandshakeRequest = serde_json::from_str(json).unwrap();
+        let package: PackageHandshakeRequest = serde_json::from_str(json).unwrap();
 
-        assert_eq!(package.package_type, PackageType::Startup);
+        assert_eq!(package.package_type, PackageType::HandshakeRequest);
         assert_eq!(package.content.protocol, "json");
     }
 
@@ -256,24 +314,24 @@ use super::*;
             response_code: 0,
             response_code_text: "Success".to_string(),
         };
-        let package = Package {
-            package_type: PackageType::StartupResponse,
+        let package = PackageGen {
+            package_type: PackageType::HandshakeResponse,
             content,
         };
 
         let json = serde_json::to_string(&package).unwrap();
-        let expected = r#"{"packageType":"startupResponse","content":{"responseCode":0,"responseCodeText":"Success"}}"#;
+        let expected = r#"{"packageType":"handshakeResponse","content":{"responseCode":0,"responseCodeText":"Success"}}"#;
 
         assert_eq!(json, expected);
     }
 
     #[test]
     fn test_handshake_response_deserialization() {
-        let json = r#"{"packageType":"startupResponse","content":{"responseCode":1,"responseCodeText":"Plugin initialization error"}}"#;
+        let json = r#"{"packageType":"handshakeResponse","content":{"responseCode":1,"responseCodeText":"Plugin initialization error"}}"#;
 
-        let package: HandshakeResponse = serde_json::from_str(json).unwrap();
+        let package: PackageHandshakeResponse = serde_json::from_str(json).unwrap();
 
-        assert_eq!(package.package_type, PackageType::StartupResponse);
+        assert_eq!(package.package_type, PackageType::HandshakeResponse);
         assert_eq!(package.content.response_code, 1);
         assert_eq!(
             package.content.response_code_text,
@@ -301,15 +359,15 @@ use super::*;
             http_request,
         };
 
-        let package = Package {
-            package_type: PackageType::Request,
+        let package = PackageGen {
+            package_type: PackageType::NormalRequest,
             content,
         };
 
         let json = serde_json::to_string(&package).unwrap();
 
         // Check that it contains expected fields
-        assert!(json.contains(r#""packageType":"request""#));
+        assert!(json.contains(r#""packageType":"normalRequest""#));
         assert!(json.contains(r#""packageId":12345"#));
         assert!(json.contains(r#""requestMethod":"GET""#));
         assert!(json.contains(r#""path":"home/helloWorld.html""#));
@@ -319,7 +377,7 @@ use super::*;
     #[test]
     fn test_normal_request_deserialization() {
         let json = r#"{
-            "packageType": "request",
+            "packageType": "normalRequest",
             "content": {
                 "packageId": 12345,
                 "httpRequest": {
@@ -337,9 +395,9 @@ use super::*;
             }
         }"#;
 
-        let package: NormalRequest = serde_json::from_str(json).unwrap();
+        let package: PackageNormalRequest = serde_json::from_str(json).unwrap();
 
-        assert_eq!(package.package_type, PackageType::Request);
+        assert_eq!(package.package_type, PackageType::NormalRequest);
         assert_eq!(package.content.package_id, 12345);
         assert_eq!(package.content.http_request.request_method, "GET");
         assert_eq!(package.content.http_request.path, "home/helloWorld.html");
@@ -367,14 +425,14 @@ use super::*;
             http_response,
         };
 
-        let package = Package {
-            package_type: PackageType::Response,
+        let package = PackageGen {
+            package_type: PackageType::NormalResponse,
             content,
         };
 
         let json = serde_json::to_string(&package).unwrap();
 
-        assert!(json.contains(r#""packageType":"response""#));
+        assert!(json.contains(r#""packageType":"normalResponse""#));
         assert!(json.contains(r#""packageId":12345"#));
         assert!(json.contains(r#""statusCode":200"#));
     }
@@ -382,7 +440,7 @@ use super::*;
     #[test]
     fn test_normal_response_deserialization() {
         let json = r#"{
-            "packageType": "response",
+            "packageType": "normalResponse",
             "content": {
                 "packageId": 12345,
                 "httpResponse": {
@@ -398,9 +456,9 @@ use super::*;
             }
         }"#;
 
-        let package: NormalResponse = serde_json::from_str(json).unwrap();
+        let package: PackageNormalResponse = serde_json::from_str(json).unwrap();
 
-        assert_eq!(package.package_type, PackageType::Response);
+        assert_eq!(package.package_type, PackageType::NormalResponse);
         assert_eq!(package.content.package_id, 12345);
         assert_eq!(package.content.http_response.status_code, 200);
         assert_eq!(package.content.http_response.body, "response body");
@@ -420,7 +478,7 @@ use super::*;
             policy: "restart".to_string(),
         };
 
-        let package = Package {
+        let package = PackageGen {
             package_type: PackageType::Error,
             content,
         };
@@ -442,7 +500,7 @@ use super::*;
             }
         }"#;
 
-        let package: ErrorReport = serde_json::from_str(json).unwrap();
+        let package: PackageError = serde_json::from_str(json).unwrap();
 
         assert_eq!(package.package_type, PackageType::Error);
         assert_eq!(package.content.error_code, 15902);
@@ -460,7 +518,7 @@ use super::*;
             message: "Successfully processed request".to_string(),
         };
 
-        let package = Package {
+        let package = PackageGen {
             package_type: PackageType::Log,
             content,
         };
@@ -481,7 +539,7 @@ use super::*;
             }
         }"#;
 
-        let package: LogMessage = serde_json::from_str(json).unwrap();
+        let package: PackageLog = serde_json::from_str(json).unwrap();
 
         assert_eq!(package.package_type, PackageType::Log);
         assert_eq!(package.content.level, "warning");
@@ -492,13 +550,13 @@ use super::*;
     fn test_shutdown_request_serialization() {
         let content: HashMap<String, String> = HashMap::new();
 
-        let package = Package {
-            package_type: PackageType::Shutdown,
+        let package = PackageGen {
+            package_type: PackageType::ShutdownRequest,
             content,
         };
 
         let json = serde_json::to_string(&package).unwrap();
-        let expected = r#"{"packageType":"shutdown","content":{}}"#;
+        let expected = r#"{"packageType":"shutdownRequest","content":{}}"#;
 
         assert_eq!(json, expected);
     }
@@ -507,7 +565,7 @@ use super::*;
     fn test_invalid_json_deserialization() {
         let invalid_json = r#"{"packageType": "startup", "invalid": "structure"}"#;
 
-        let result: Result<HandshakeRequest, _> = serde_json::from_str(invalid_json);
+        let result: Result<PackageHandshakeRequest, _> = serde_json::from_str(invalid_json);
         assert!(result.is_err());
     }
 
@@ -515,36 +573,36 @@ use super::*;
     fn test_missing_fields_deserialization() {
         let incomplete_json = r#"{"packageType": "startup"}"#;
 
-        let result: Result<HandshakeRequest, _> = serde_json::from_str(incomplete_json);
+        let result: Result<PackageHandshakeRequest, _> = serde_json::from_str(incomplete_json);
         assert!(result.is_err());
     }
     #[test]
     fn test_shutdown_request_deserialization() {
         let json = r#"{
-            "packageType": "shutdown",
+            "packageType": "shutdownRequest",
             "content": {}
         }"#;
 
-        let package: ShutdownRequest = serde_json::from_str(json).unwrap();
+        let package: PackageShutdownRequest = serde_json::from_str(json).unwrap();
 
-        assert_eq!(package.package_type, PackageType::Shutdown);
+        assert_eq!(package.package_type, PackageType::ShutdownRequest);
         assert!(package.content.is_empty());
     }
 
     #[test]
     fn test_generic_package_startup_deserialization() {
         let json = r#"{
-            "packageType": "startup",
+            "packageType": "handshakeRequest",
             "content": {
                 "protocol": "json"
             }
         }"#;
 
-        let package: PackageContent = serde_json::from_str(json).unwrap();
+        let package: Package = serde_json::from_str(json).unwrap();
 
-        assert_eq!(matches!(package, PackageContent::Startup(_)), true);
+        assert_eq!(matches!(package, Package::HandshakeRequest(_)), true);
         match package {
-            PackageContent::Startup(content) => {
+            Package::HandshakeRequest(content) => {
                 assert_eq!(content.protocol, "json");
             }
             _ => panic!("Expected Startup content"),
@@ -554,18 +612,18 @@ use super::*;
     #[test]
     fn test_generic_package_startup_response_deserialization() {
         let json = r#"{
-            "packageType": "startupResponse",
+            "packageType": "handshakeResponse",
             "content": {
                 "responseCode": 0,
                 "responseCodeText": "Success"
             }
         }"#;
 
-        let package: PackageContent = serde_json::from_str(json).unwrap();
+        let package: Package = serde_json::from_str(json).unwrap();
 
-        assert!(matches!(package, PackageContent::StartupResponse(_)));
+        assert!(matches!(package, Package::HandshakeResponse(_)));
         match package {
-            PackageContent::StartupResponse(content) => {
+            Package::HandshakeResponse(content) => {
                 assert_eq!(content.response_code, 0);
                 assert_eq!(content.response_code_text, "Success");
             }
@@ -582,7 +640,7 @@ use super::*;
             }
         }"#;
 
-        let package: serde_json::error::Result<PackageContent> = serde_json::from_str(json);
+        let package: serde_json::error::Result<Package> = serde_json::from_str(json);
 
         assert!(matches!(package, Err(_)));
     }
@@ -590,24 +648,24 @@ use super::*;
     #[test]
     fn test_package_type_serialization() {
         assert_eq!(
-            serde_json::to_string(&PackageType::Startup).unwrap(),
-            r#""startup""#
+            serde_json::to_string(&PackageType::HandshakeRequest).unwrap(),
+            r#""handshakeRequest""#
         );
         assert_eq!(
-            serde_json::to_string(&PackageType::StartupResponse).unwrap(),
-            r#""startupResponse""#
+            serde_json::to_string(&PackageType::HandshakeResponse).unwrap(),
+            r#""handshakeResponse""#
         );
         assert_eq!(
-            serde_json::to_string(&PackageType::Request).unwrap(),
-            r#""request""#
+            serde_json::to_string(&PackageType::NormalRequest).unwrap(),
+            r#""normalRequest""#
         );
         assert_eq!(
-            serde_json::to_string(&PackageType::Response).unwrap(),
-            r#""response""#
+            serde_json::to_string(&PackageType::NormalResponse).unwrap(),
+            r#""normalResponse""#
         );
         assert_eq!(
-            serde_json::to_string(&PackageType::Shutdown).unwrap(),
-            r#""shutdown""#
+            serde_json::to_string(&PackageType::ShutdownRequest).unwrap(),
+            r#""shutdownRequest""#
         );
         assert_eq!(
             serde_json::to_string(&PackageType::Error).unwrap(),
@@ -622,24 +680,24 @@ use super::*;
     #[test]
     fn test_package_type_deserialization() {
         assert_eq!(
-            serde_json::from_str::<PackageType>(r#""startup""#).unwrap(),
-            PackageType::Startup
+            serde_json::from_str::<PackageType>(r#""handshakeRequest""#).unwrap(),
+            PackageType::HandshakeRequest
         );
         assert_eq!(
-            serde_json::from_str::<PackageType>(r#""startupResponse""#).unwrap(),
-            PackageType::StartupResponse
+            serde_json::from_str::<PackageType>(r#""handshakeResponse""#).unwrap(),
+            PackageType::HandshakeResponse
         );
         assert_eq!(
-            serde_json::from_str::<PackageType>(r#""request""#).unwrap(),
-            PackageType::Request
+            serde_json::from_str::<PackageType>(r#""normalRequest""#).unwrap(),
+            PackageType::NormalRequest
         );
         assert_eq!(
-            serde_json::from_str::<PackageType>(r#""response""#).unwrap(),
-            PackageType::Response
+            serde_json::from_str::<PackageType>(r#""normalResponse""#).unwrap(),
+            PackageType::NormalResponse
         );
         assert_eq!(
-            serde_json::from_str::<PackageType>(r#""shutdown""#).unwrap(),
-            PackageType::Shutdown
+            serde_json::from_str::<PackageType>(r#""shutdownRequest""#).unwrap(),
+            PackageType::ShutdownRequest
         );
         assert_eq!(
             serde_json::from_str::<PackageType>(r#""error""#).unwrap(),
@@ -737,7 +795,7 @@ use super::*;
 
         let config = PluginConfig {
             plugin_name: "InternalBusinessHandler420".to_string(),
-            startup_command: "java -jar bussinessHandler.jar".to_string(),
+            startup_command: "java -jar businessHandler.jar".to_string(),
             protocols: vec!["json".to_string()],
             max_request_timeout: 1000,
             max_startup_time: 1000,
@@ -747,7 +805,7 @@ use super::*;
         let json = serde_json::to_string(&config).unwrap();
 
         assert!(json.contains(r#""pluginName":"InternalBusinessHandler420""#));
-        assert!(json.contains(r#""startupCommand":"java -jar bussinessHandler.jar""#));
+        assert!(json.contains(r#""startupCommand":"java -jar businessHandler.jar""#));
         assert!(json.contains(r#""protocols":["json"]"#));
         assert!(json.contains(r#""maxRequestTimeout":1000"#));
         assert!(json.contains(r#""maxStartupTime":1000"#));
@@ -757,7 +815,7 @@ use super::*;
     fn test_plugin_config_deserialization() {
         let json = r#"{
             "pluginName": "InternalBusinessHandler420",
-            "startupCommand": "java -jar bussinessHandler.jar",
+            "startupCommand": "java -jar businessHandler.jar",
             "protocols": ["json"],
             "maxRequestTimeout": 1000,
             "maxStartupTime": 1000,
@@ -771,7 +829,7 @@ use super::*;
         let config: PluginConfig = serde_json::from_str(json).unwrap();
 
         assert_eq!(config.plugin_name, "InternalBusinessHandler420");
-        assert_eq!(config.startup_command, "java -jar bussinessHandler.jar");
+        assert_eq!(config.startup_command, "java -jar businessHandler.jar");
         assert_eq!(config.protocols, vec!["json"]);
         assert_eq!(config.max_request_timeout, 1000);
         assert_eq!(config.max_startup_time, 1000);

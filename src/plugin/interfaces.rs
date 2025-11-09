@@ -1,10 +1,8 @@
 use std::future::Future;
 use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
 use crate::plugin::models;
-use crate::plugin::models::{
-    HandshakeRequest, HandshakeResponse, NormalRequest, NormalResponse, PluginConfig,
-};
-use models::Package;
+use crate::plugin::models::{PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse, PluginConfig};
+use models::PackageGen;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -59,15 +57,15 @@ pub trait PackageHandler: Sync + Send {
 pub trait PluginCommunicator {
     async fn send_request(
         &self,
-        package: NormalRequest,
-    ) -> Result<NormalResponse, PackageHandlerError>;
+        package: PackageNormalRequest,
+    ) -> Result<PackageNormalResponse, PackageHandlerError>;
 
-    fn send_package<T: Serialize>(&self, package: Package<T>) -> Result<(), PackageHandlerError>;
+    fn send_package<T: Serialize>(&self, package: PackageGen<T>) -> Result<(), PackageHandlerError>;
 
     async fn send_handshake(
         &self,
-        package: HandshakeRequest,
-    ) -> Result<HandshakeResponse, PackageHandlerError>;
+        package: PackageHandshakeRequest,
+    ) -> Result<PackageHandshakeResponse, PackageHandlerError>;
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Display, Clone)]

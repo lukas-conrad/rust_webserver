@@ -3,7 +3,7 @@ use crate::plugin::handlers::plugin_handler::PluginError::StartupError;
 use crate::plugin::handlers::AsyncPackageHandler;
 use crate::plugin::interfaces::{PackageHandlerError, Plugin, PluginCommunicator, State};
 use crate::plugin::models;
-use crate::plugin::models::{HandshakeRequest, HandshakeRequestContent, HttpRequest, HttpResponse, NormalRequest, PackageContent, PackageType, PluginConfig, ShutdownRequest};
+use crate::plugin::models::{HandshakeRequestContent, HttpRequest, HttpResponse, Package, PackageHandshakeRequest, PackageNormalRequest, PackageShutdownRequest, PackageType, PluginConfig};
 use io::ErrorKind;
 use rand::random;
 use std::collections::HashMap;
@@ -16,7 +16,6 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use crate::plugin::models::PackageType::{Shutdown, Startup};
 
 #[derive(Debug, Error)]
 pub enum PluginError {
@@ -27,7 +26,7 @@ pub enum PluginError {
 impl Plugin {
     pub async fn start(
         config_path: Box<PathBuf>,
-        callback: Box<dyn Fn(PackageContent, &PluginConfig) + Send + Sync + 'static>,
+        callback: Box<dyn Fn(Package, &PluginConfig) + Send + Sync + 'static>,
     ) -> Result<Self, io::Error> {
         let mut file = File::open(&config_path.as_path()).await?;
 
@@ -91,8 +90,8 @@ impl Plugin {
     ) -> Result<HttpResponse, PackageHandlerError> {
         let package_id = random::<i64>();
 
-        let request_package = NormalRequest {
-            package_type: PackageType::Request,
+        let request_package = PackageNormalRequest {
+            package_type: PackageType::NormalRequest,
             content: models::NormalRequestContent {
                 package_id,
                 http_request: request,
@@ -104,8 +103,8 @@ impl Plugin {
     }
 
     pub async fn stop(&self) -> Result<(), PackageHandlerError> {
-        let request = ShutdownRequest {
-            package_type: Shutdown,
+        let request = PackageShutdownRequest {
+            package_type: PackageType::ShutdownRequest,
             content: HashMap::new(),
         };
         self.communicator.send_package(request)?;
@@ -130,8 +129,8 @@ impl Plugin {
     }
 
     pub async fn init(&mut self) -> Result<(), PluginError> {
-        let handshake = HandshakeRequest {
-            package_type: Startup,
+        let handshake = PackageHandshakeRequest {
+            package_type: PackageType::HandshakeRequest,
             content: HandshakeRequestContent {
                 protocol: "json".to_string(),
             },

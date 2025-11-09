@@ -27,7 +27,7 @@ The Core provides the Plugin with the chosen protocol from the protocol list of 
 
 ```json
 {
-  "packageType": "startup",
+  "packageType": "handshakeRequest",
   "content": {
     "protocol": "json"
   }
@@ -44,7 +44,7 @@ The Plugin responds with a response code. Response codes could be:
 
 ```json
 {
-	"packageType": "startup",
+	"packageType": "handshakeResponse",
 	"content": {
 		"responseCode": 1,
 		"responseCodeText": "Plugin initialization error"
@@ -62,7 +62,7 @@ The request is async. Every request to the plugin has a unique id. The response 
 
 ```json
 {
-  "packageType": "request",
+  "packageType": "normalRequest",
   "content": {
     "packageId": 12345,
     "httpRequest": {
@@ -85,7 +85,7 @@ The request is async. Every request to the plugin has a unique id. The response 
 
 ```json
 {
-  "packageType": "response",
+  "packageType": "normalResponse",
   "content": {
     "packageId": 12345,
     "httpResponse": {
@@ -109,7 +109,7 @@ This package is used to stop the plugin (when stopping the server) or restarting
 
 ```json
 {
-  "packageType": "shutdown",
+  "packageType": "shutdownRequest",
   "content": {
 
   }

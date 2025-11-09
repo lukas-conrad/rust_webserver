@@ -1,9 +1,10 @@
 use crate::plugin::interfaces::{PackageHandlerError, PluginCommunicator};
 use crate::plugin::models::{
-    GenericPackage, HandshakeRequest, HandshakeResponse, NormalRequest, NormalResponse, Package,
-    PackageContent, PackageType, PluginConfig,
+    HandshakeRequest, HandshakeResponse, NormalRequest, NormalResponse, Package, PackageContent,
+    PackageType, PluginConfig,
 };
 use crate::plugin::PackageHandler;
+use hyper::Response;
 use log::{error, info};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -12,7 +13,7 @@ use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
 
-pub type CallbackFn = Box<dyn Fn(GenericPackage) + Send + Sync + 'static>;
+pub type CallbackFn = Box<dyn Fn(PackageContent) + Send + Sync + 'static>;
 
 pub struct AsyncPluginCommunicator {
     package_handler: Box<dyn PackageHandler>,
@@ -50,11 +51,11 @@ impl AsyncPluginCommunicator {
                 let handles_clone = waiting_handles_clone.clone();
                 let handshake_request_clone = handshake_request.clone();
                 // info!("Received package: {}", String::from_utf8_lossy(bytes));
-                let res = serde_json::from_slice::<GenericPackage>(bytes);
+                let res = serde_json::from_slice::<PackageContent>(bytes);
                 match res {
                     Ok(package) => {
-                        if package.package_type == PackageType::Response {
-                            if let PackageContent::Response(content) = package.content {
+                        if matches!(package, PackageContent::Response(_)) {
+                            if let PackageContent::Response(content) = package {
                                 let package_id = content.package_id;
 
                                 tokio::spawn(async move {
@@ -68,10 +69,10 @@ impl AsyncPluginCommunicator {
                                     }
                                 });
                             }
-                        } else if package.package_type == PackageType::StartupResponse
-                            || package.package_type == PackageType::Startup
+                        } else if matches!(package, PackageContent::StartupResponse(_))
+                            || matches!(package, PackageContent::Startup(_))
                         {
-                            let package_content = package.content.clone();
+                            let package_content = package.clone();
                             if let PackageContent::StartupResponse(content) = package_content {
                                 tokio::spawn(async move {
                                     if let Some(sender) =

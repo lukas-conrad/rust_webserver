@@ -81,13 +81,13 @@ pub enum State {
 pub struct Plugin {
     pub config: Arc<PluginConfig>,
 
-    pub(crate) process: Arc<Mutex<Child>>,
+    pub process: Arc<Mutex<Child>>,
 
     pub state: State,
 
-    pub(crate) communicator: AsyncPluginCommunicator,
+    pub communicator: AsyncPluginCommunicator,
 
     pub config_dir: Box<PathBuf>,
 
-    pub(crate) error_callback: Option<Arc<dyn Fn(&models::ErrorLog) + Send + Sync + 'static>>,
+    pub error_callback: Option<Arc<dyn Fn(&models::ErrorLog) + Send + Sync + 'static>>,
 }

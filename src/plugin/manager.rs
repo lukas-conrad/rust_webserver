@@ -51,7 +51,7 @@ impl PluginManager {
         let mut plugin = Plugin::start(
             Box::new(config_path),
             Box::new(move |package, config| {
-                match package.content {
+                match package {
                     Error(content) => {
                         let log_json = serde_json::to_string_pretty(&content).unwrap_or_else(|e| {
                             format!("{{ \"error\": \"Failed to serialize error log: {}\" }}", e)

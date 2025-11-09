@@ -3,7 +3,7 @@ use crate::plugin::handlers::plugin_handler::PluginError::StartupError;
 use crate::plugin::handlers::AsyncPackageHandler;
 use crate::plugin::interfaces::{PackageHandlerError, Plugin, PluginCommunicator, State};
 use crate::plugin::models;
-use crate::plugin::models::{GenericPackage, HandshakeRequest, HandshakeRequestContent, HttpRequest, HttpResponse, NormalRequest, PackageType, PluginConfig, ShutdownRequest};
+use crate::plugin::models::{HandshakeRequest, HandshakeRequestContent, HttpRequest, HttpResponse, NormalRequest, PackageContent, PackageType, PluginConfig, ShutdownRequest};
 use io::ErrorKind;
 use rand::random;
 use std::collections::HashMap;
@@ -27,7 +27,7 @@ pub enum PluginError {
 impl Plugin {
     pub async fn start(
         config_path: Box<PathBuf>,
-        callback: Box<dyn Fn(GenericPackage, &PluginConfig) + Send + Sync + 'static>,
+        callback: Box<dyn Fn(PackageContent, &PluginConfig) + Send + Sync + 'static>,
     ) -> Result<Self, io::Error> {
         let mut file = File::open(&config_path.as_path()).await?;
 

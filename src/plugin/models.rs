@@ -70,8 +70,14 @@ pub struct ErrorLog {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageGen<T> {
-    pub package_type: PackageType,
+    package_type: PackageType,
     pub content: T,
+}
+
+impl<T> PackageGen<T> {
+    pub fn package_type(&self) -> &PackageType {
+        &self.package_type
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -127,6 +133,7 @@ macro_rules! package {
         // Generate PackageType enum
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
         #[serde(rename_all = "camelCase")]
+        #[allow(unused)]
         pub enum PackageType {
             $(
                 $variant,
@@ -136,6 +143,7 @@ macro_rules! package {
         // Generate Package enum
         #[derive(Debug, Clone, Serialize, Deserialize)]
         #[serde(tag = "packageType", content = "content", rename_all = "camelCase")]
+        #[allow(unused)]
         pub enum Package {
             $(
                 $variant($content_type),
@@ -144,13 +152,17 @@ macro_rules! package {
 
         // Generate type aliases for Package<T>
         $(
+
             paste::paste! {
+                #[allow(unused)]
                 pub type [<Package $variant>] = PackageGen<$content_type>;
             }
         )*
 
         // Implement methods to convert Package<T> to Package
         impl Package {
+
+            #[allow(unused)]
             pub fn package_type(&self) -> PackageType {
                 match self {
                     $(
@@ -171,11 +183,21 @@ macro_rules! package {
 
         // Implement methods to get Package variant from Package<T>
         $(
-                impl PackageGen<$content_type> {
-                    pub fn to_package(self) -> Package {
-                        Package::$variant(self.content)
+            impl PackageGen<$content_type> {
+
+                #[allow(unused)]
+                pub fn new(content: $content_type) -> Self {
+                    Self {
+                        package_type: PackageType::$variant,
+                        content
                     }
                 }
+
+                #[allow(unused)]
+                pub fn to_package(self) -> Package {
+                    Package::$variant(self.content)
+                }
+            }
         )*
     };
 }

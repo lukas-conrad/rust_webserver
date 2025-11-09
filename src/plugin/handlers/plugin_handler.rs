@@ -3,7 +3,10 @@ use crate::plugin::handlers::plugin_handler::PluginError::StartupError;
 use crate::plugin::handlers::AsyncPackageHandler;
 use crate::plugin::interfaces::{PackageHandlerError, Plugin, PluginCommunicator, State};
 use crate::plugin::models;
-use crate::plugin::models::{HandshakeRequestContent, HttpRequest, HttpResponse, Package, PackageHandshakeRequest, PackageNormalRequest, PackageShutdownRequest, PackageType, PluginConfig};
+use crate::plugin::models::{
+    HandshakeRequestContent, HttpRequest, HttpResponse, Package, PackageHandshakeRequest,
+    PackageNormalRequest, PackageShutdownRequest, PluginConfig,
+};
 use io::ErrorKind;
 use rand::random;
 use std::collections::HashMap;
@@ -71,7 +74,8 @@ impl Plugin {
             config.clone(),
             handler,
             Box::new(move |package| callback(package, &config_clone.clone())),
-        ).await;
+        )
+        .await;
 
         let plugin = Self {
             process: Arc::new(Mutex::new(process)),
@@ -90,23 +94,17 @@ impl Plugin {
     ) -> Result<HttpResponse, PackageHandlerError> {
         let package_id = random::<i64>();
 
-        let request_package = PackageNormalRequest {
-            package_type: PackageType::NormalRequest,
-            content: models::NormalRequestContent {
-                package_id,
-                http_request: request,
-            },
-        };
+        let request_package = PackageNormalRequest::new(models::NormalRequestContent {
+            package_id,
+            http_request: request,
+        });
 
         let response = self.communicator.send_request(request_package).await?;
         Ok(response.content.http_response)
     }
 
     pub async fn stop(&self) -> Result<(), PackageHandlerError> {
-        let request = PackageShutdownRequest {
-            package_type: PackageType::ShutdownRequest,
-            content: HashMap::new(),
-        };
+        let request = PackageShutdownRequest::new(HashMap::new());
         self.communicator.send_package(request)?;
 
         // Wait for process termination
@@ -129,12 +127,9 @@ impl Plugin {
     }
 
     pub async fn init(&mut self) -> Result<(), PluginError> {
-        let handshake = PackageHandshakeRequest {
-            package_type: PackageType::HandshakeRequest,
-            content: HandshakeRequestContent {
-                protocol: "json".to_string(),
-            },
-        };
+        let handshake = PackageHandshakeRequest::new(HandshakeRequestContent {
+            protocol: "json".to_string(),
+        });
         let result = self.communicator.send_handshake(handshake).await;
 
         let package = result.map_err(move |e| StartupError(format!("Handshake failed: {}", e)))?;
@@ -143,7 +138,7 @@ impl Plugin {
             self.state = State::Running;
             Ok(())
         } else {
-            let string = format!("Plugin rejected handshake {}", package.package_type);
+            let string = format!("Plugin rejected handshake {}", package.package_type());
             self.state = State::Error(string.clone());
             Err(StartupError(string))
         }

@@ -60,10 +60,7 @@ impl AsyncPluginCommunicator {
                                 tokio::spawn(async move {
                                     let mut map = handles_clone.lock().await;
                                     if let Some(sender) = map.remove(&package_id) {
-                                        let response = PackageNormalResponse {
-                                            package_type: PackageType::NormalResponse,
-                                            content,
-                                        };
+                                        let response = PackageNormalResponse::new(content);
                                         let _ = sender.send(response);
                                     }
                                 });
@@ -77,10 +74,7 @@ impl AsyncPluginCommunicator {
                                     if let Some(sender) =
                                         handshake_request_clone.lock().await.take()
                                     {
-                                        let _ = sender.send(PackageGen {
-                                            package_type: PackageType::HandshakeResponse,
-                                            content,
-                                        });
+                                        let _ = sender.send(PackageHandshakeResponse::new(content));
                                     }
                                 });
                             }

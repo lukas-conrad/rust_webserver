@@ -160,7 +160,7 @@ macro_rules! package {
             }
         }
 
-        // // Implement From<Package<T>> for Package for each type
+        // Implement From<Package<T>> for Package for each type
         // $(
         //     impl From<Package<$content_type>> for Package {
         //         fn from(package: Package<$content_type>) -> Self {
@@ -172,12 +172,8 @@ macro_rules! package {
         // Implement methods to get Package variant from Package<T>
         $(
                 impl PackageGen<$content_type> {
-                    pub fn to_content(self) -> Package {
+                    pub fn to_package(self) -> Package {
                         Package::$variant(self.content)
-                    }
-
-                    pub fn package_type(&self) -> PackageType {
-                        PackageType::$variant
                     }
                 }
         )*

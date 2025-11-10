@@ -16,7 +16,7 @@ mod control_system;
 
 use webserver::{WebServer, WebServerService};
 use crate::plugin::PluginManager;
-use crate::control_system::control_system::DefaultControlSystem;
+use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};
 use crate::control_system::cli::CommandLineInterface;
 
 #[tokio::main]
@@ -43,13 +43,13 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
 
     let server = Arc::new(WebServer::new(plugin_manager.clone()));
 
-    let control_system = Arc::new(DefaultControlSystem::new(plugin_manager.clone()));
+    let control_system = ControlSystemWrapper::new(DefaultControlSystem::new(plugin_manager.clone()));
     info!("Control System initialized");
 
     // Starte die CLI in einem separaten Thread
     let cli_control_system = control_system.clone();
     std::thread::spawn(move || {
-        let cli = CommandLineInterface::new(cli_control_system);
+        let cli = CommandLineInterface::new(Box::new(cli_control_system));
         cli.run();
     });
 

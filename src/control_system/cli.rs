@@ -5,11 +5,11 @@ use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
 pub struct CommandLineInterface {
-    control_system: Arc<DefaultControlSystem>,
+    control_system: Box<dyn ControlSystem>,
 }
 
 impl CommandLineInterface {
-    pub fn new(control_system: Arc<DefaultControlSystem>) -> Self {
+    pub fn new(control_system: Box<dyn ControlSystem>) -> Self {
         Self { control_system }
     }
 

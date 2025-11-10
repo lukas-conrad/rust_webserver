@@ -6,7 +6,7 @@ use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
 use crate::control_system::commands::models::TextMessage;
 use crate::plugin::PluginManager;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use strum::Display;
 use thiserror::Error;
 
@@ -69,10 +69,10 @@ pub mod param_helpers {
 macro_rules! param {
     (@field_type $ty:ty, true) => { $ty };
     (@field_type $ty:ty, false) => { Option<$ty> };
-    
+
     (@unwrap_value $value:expr, true) => { $value.unwrap_or_default() };
     (@unwrap_value $value:expr, false) => { $value };
-    
+
     (
         $name:ident {
             $(positional: [
@@ -177,7 +177,7 @@ macro_rules! param {
             fn param_description() -> Vec<ParameterDescriptor> {
                 let mut params = Vec::new();
                 let mut positional_index = 0;
-                
+
                 $($(
                     params.push(ParameterDescriptor::new(
                         format!("[{}] {}", positional_index, stringify!($pos_field)),
@@ -186,7 +186,7 @@ macro_rules! param {
                     ));
                     positional_index += 1;
                 )*)?
-                
+
                 $($(
                     params.push(ParameterDescriptor::new(
                         format!("--{}", stringify!($named_field)),
@@ -194,7 +194,7 @@ macro_rules! param {
                         $named_required,
                     ));
                 )*)?
-                
+
                 $($(
                     params.push(ParameterDescriptor::new(
                         format!("--{}", stringify!($flag_field)),
@@ -202,7 +202,7 @@ macro_rules! param {
                         false,
                     ));
                 )*)?
-                
+
                 params
             }
         }
@@ -266,6 +266,39 @@ impl ControlSystem for DefaultControlSystem {
                 "Command '{}' not found",
                 request.name
             ))),
+        }
+    }
+}
+
+pub struct ControlSystemWrapper {
+    control_system: Arc<Mutex<dyn ControlSystem + Send>>,
+}
+
+impl ControlSystemWrapper {
+    pub fn new(control_system: impl ControlSystem + Send + 'static) -> Self {
+        Self {
+            control_system: Arc::new(Mutex::new(control_system)),
+        }
+    }
+
+    pub fn from_arc(control_system: Arc<Mutex<dyn ControlSystem + Send>>) -> Self {
+        Self { control_system }
+    }
+}
+impl ControlSystem for ControlSystemWrapper {
+    fn run_command(&self, request: CommandRequest) -> CommandResponse {
+        match self.control_system.lock() {
+            Ok(system) => system.run_command(request),
+            Err(_) => CommandResponse::fail(TextMessage::new(
+                "Failed to acquire lock on control system".to_string(),
+            )),
+        }
+    }
+}
+impl Clone for ControlSystemWrapper {
+    fn clone(&self) -> Self {
+        Self {
+            control_system: Arc::clone(&self.control_system),
         }
     }
 }

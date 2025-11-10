@@ -46,6 +46,18 @@ impl Plugin {
             ));
         }
 
+        // Platform-specific shell command
+        #[cfg(target_os = "windows")]
+        let mut process = Command::new("cmd")
+            .arg("/C")
+            .arg(&config.startup_command)
+            .current_dir(option.unwrap())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        #[cfg(not(target_os = "windows"))]
         let mut process = Command::new("sh")
             .arg("-c")
             .arg(&config.startup_command)

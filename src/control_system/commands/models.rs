@@ -115,8 +115,8 @@ macro_rules! table {
                     crate::control_system::commands::models::format_table(&self.header, columns)
                 }
 
-                fn to_json(&self) -> String {
-                    serde_json::to_string(self).unwrap_or("{}".to_string())
+                fn to_json(&self) -> serde_json::Value {
+                    serde_json::to_value(self).unwrap_or(serde_json::json!({}))
                 }
             }
         }
@@ -139,8 +139,8 @@ impl Message for TextMessage {
         self.text.clone()
     }
 
-    fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap_or("{}".to_string())
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap_or(serde_json::json!({}))
     }
 }
 

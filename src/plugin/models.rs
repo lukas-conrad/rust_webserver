@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::{Display, EnumString};
+use crate::control_system::models::CommandRequest;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -54,18 +55,6 @@ pub struct ErrorLog {
     pub error_name: String,
     pub error_details: String,
 }
-
-// #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
-// #[serde(rename_all = "camelCase")]
-// pub enum PackageType {
-//     Startup,
-//     StartupResponse,
-//     Response,
-//     Request,
-//     Shutdown,
-//     Error,
-//     Log,
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -122,8 +111,13 @@ pub struct LogContent {
     pub message: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CliResponseContent {
+    pub success: bool,
+    pub response: serde_json::Value,
+}
 
-// Macro to generate PackageType, Package, and type aliases
 macro_rules! package {
     (
         $(
@@ -209,90 +203,11 @@ package! {
     NormalRequest(NormalRequestContent),
     NormalResponse(NormalResponseContent),
     Error(ErrorReportContent),
+    CliRequest(CommandRequest),
+    CliResponse(CliResponseContent),
     Log(LogContent),
     ShutdownRequest(HashMap<String, String>),
 }
-
-
-// #[derive(Debug, Clone, Serialize)]
-// pub struct GenericPackage {
-//     pub package_type: PackageType,
-//     pub content: Package,
-// }
-
-// impl<'de> Deserialize<'de> for GenericPackage {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         #[derive(Deserialize)]
-//         struct Helper {
-//             #[serde(rename = "packageType")]
-//             package_type: PackageType,
-//             content: serde_json::Value,
-//         }
-//
-//         let helper = Helper::deserialize(deserializer)?;
-//
-//         let content = match helper.package_type {
-//             PackageType::Startup => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::Startup(content)
-//                 } else {
-//                     return Err(de::Error::custom("Invalid startup content"));
-//                 }
-//             }
-//             PackageType::StartupResponse => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::StartupResponse(content)
-//                 } else {
-//                     return Err(de::Error::custom("Invalid startup response content"));
-//                 }
-//             }
-//             PackageType::Response => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::Response(content)
-//                 } else {
-//                     return Err(de::Error::custom("Invalid response content"));
-//                 }
-//             }
-//             PackageType::Request => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::Request(content)
-//                 } else {
-//                     return Err(de::Error::custom("Invalid request content"));
-//                 }
-//             }
-//             PackageType::Shutdown => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::Shutdown(content)
-//                 } else {
-//                     Package::Shutdown(HashMap::new())
-//                 }
-//             }
-//             PackageType::Error => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::Error(content)
-//                 } else {
-//                     return Err(de::Error::custom("Invalid error content"));
-//                 }
-//             }
-//             PackageType::Log => {
-//                 if let Ok(content) = serde_json::from_value(helper.content.clone()) {
-//                     Package::Log(content)
-//                 } else {
-//                     return Err(de::Error::custom("Invalid log content"));
-//                 }
-//             }
-//             PackageType::Unknown => Package::Unknown(helper.content),
-//         };
-//
-//         Ok(GenericPackage {
-//             package_type: helper.package_type,
-//             content,
-//         })
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

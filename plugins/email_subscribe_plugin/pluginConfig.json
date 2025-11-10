@@ -1,6 +1,6 @@
 {
-  "pluginName": "Email Subscriber Plugin",
-  "startupCommand": "./email_subscribe_plugin",
+  "pluginName": "Email Subscribe Plugin",
+  "startupCommand": "email_subscribe_plugin.exe",
   "protocols": ["json"],
   "maxRequestTimeout": 5000,
   "maxStartupTime": 5000,

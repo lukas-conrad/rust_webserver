@@ -1,3 +1,7 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandRequest {
     pub name: String,
     pub args: Vec<String>,
@@ -11,7 +15,9 @@ impl CommandRequest {
 
 pub trait Message {
     fn to_string(&self) -> String;
-    fn to_json(&self) -> String;
+
+    //TODO: upgrade to Result (if serialization fails)
+    fn to_json(&self) -> serde_json::Value;
 }
 
 pub struct CommandResponse {

@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    let plugin_manager = Arc::new(PluginManager::new(error_log_dir));
+    let mut plugin_manager = Arc::new(PluginManager::new(error_log_dir));
 
     match plugin_manager.scan_plugins_directory(&plugins_dir).await {
         Ok(_) => info!("Successfully scanned plugins directory"),

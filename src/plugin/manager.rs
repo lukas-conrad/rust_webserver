@@ -10,6 +10,7 @@ use walkdir::WalkDir;
 pub struct PluginManager {
     plugins: Arc<Mutex<Vec<Arc<Plugin>>>>,
     error_log_path: PathBuf,
+    // cli: Option<Arc<Box<dyn ControlSystem>>>
 }
 
 impl PluginManager {
@@ -17,6 +18,7 @@ impl PluginManager {
         PluginManager {
             plugins: Arc::new(Mutex::new(Vec::new())),
             error_log_path,
+            // cli: None
         }
     }
 

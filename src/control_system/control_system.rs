@@ -14,7 +14,7 @@ pub trait ControlSystem {
     fn run_command(&self, request: CommandRequest) -> CommandResponse;
 }
 
-pub trait Command: Send + Sync {
+pub trait Command: Send {
     fn execute(&self, params: Vec<String>) -> CommandResponse;
     fn get_command_descriptor(&self) -> CommandDescriptor;
 }

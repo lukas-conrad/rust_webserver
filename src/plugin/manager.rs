@@ -6,11 +6,12 @@ use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
+use crate::control_system::control_system::ControlSystem;
 
 pub struct PluginManager {
     plugins: Arc<Mutex<Vec<Arc<Plugin>>>>,
     error_log_path: PathBuf,
-    // cli: Option<Arc<Box<dyn ControlSystem>>>
+    pub cli: Mutex<Option<Arc<dyn ControlSystem + Send + Sync>>>
 }
 
 impl PluginManager {
@@ -18,7 +19,7 @@ impl PluginManager {
         PluginManager {
             plugins: Arc::new(Mutex::new(Vec::new())),
             error_log_path,
-            // cli: None
+            cli: Mutex::new(None),
         }
     }
 
@@ -84,8 +85,8 @@ impl PluginManager {
                 }
             }),
         )
-        .await
-        .map_err(move |err| PluginError::StartupFailed(format!("Startup failed {}", err)))?;
+            .await
+            .map_err(move |err| PluginError::StartupFailed(format!("Startup failed {}", err)))?;
 
         plugin
             .init()
@@ -251,5 +252,4 @@ impl PluginManager {
         self.stop_all_plugins().await?;
         self.start_all_plugins().await
     }
-
 }

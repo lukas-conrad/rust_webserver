@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use strum::Display;
 use thiserror::Error;
 
-pub trait ControlSystem {
+pub trait ControlSystem: Send {
     fn run_command(&self, request: CommandRequest) -> CommandResponse;
 }
 
@@ -275,7 +275,7 @@ pub struct ControlSystemWrapper {
 }
 
 impl ControlSystemWrapper {
-    pub fn new(control_system: impl ControlSystem + Send + 'static) -> Self {
+    pub fn new(control_system: impl ControlSystem + 'static) -> Self {
         Self {
             control_system: Arc::new(Mutex::new(control_system)),
         }

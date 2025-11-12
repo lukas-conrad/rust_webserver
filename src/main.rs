@@ -10,14 +10,14 @@ use std::sync::Arc;
 use tokio::fs;
 use tokio::net::TcpListener;
 
+mod control_system;
 mod plugin;
 mod webserver;
-mod control_system;
 
-use webserver::{WebServer, WebServerService};
-use crate::plugin::PluginManager;
-use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};
 use crate::control_system::cli::CommandLineInterface;
+use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};
+use crate::plugin::PluginManager;
+use webserver::{WebServer, WebServerService};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
@@ -34,22 +34,28 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    let mut plugin_manager = Arc::new(PluginManager::new(error_log_dir));
+    let plugin_manager = Arc::new(PluginManager::new(error_log_dir));
 
     match plugin_manager.scan_plugins_directory(&plugins_dir).await {
         Ok(_) => info!("Successfully scanned plugins directory"),
         Err(e) => error!("Error scanning plugins directory: {}", e),
     }
+    let control_system = Arc::new(ControlSystemWrapper::new(DefaultControlSystem::new(
+        plugin_manager.clone(),
+    )));
+    info!("Control System initialized");
+    let _ = plugin_manager
+        .cli
+        .lock()
+        .await
+        .insert(control_system.clone());
 
     let server = Arc::new(WebServer::new(plugin_manager.clone()));
-
-    let control_system = ControlSystemWrapper::new(DefaultControlSystem::new(plugin_manager.clone()));
-    info!("Control System initialized");
 
     // Starte die CLI in einem separaten Thread
     let cli_control_system = control_system.clone();
     std::thread::spawn(move || {
-        let cli = CommandLineInterface::new(Box::new(cli_control_system));
+        let cli = CommandLineInterface::new(cli_control_system);
         cli.run();
     });
 

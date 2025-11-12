@@ -1,17 +1,17 @@
+use crate::control_system::control_system::ControlSystem;
 use crate::plugin::interfaces::{Plugin, PluginError, State};
-use crate::plugin::models::Package::{Error, Log};
+use crate::plugin::models::Package::{CliRequest, Error, Log};
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
-use crate::control_system::control_system::ControlSystem;
 
 pub struct PluginManager {
     plugins: Arc<Mutex<Vec<Arc<Plugin>>>>,
     error_log_path: PathBuf,
-    pub cli: Mutex<Option<Arc<dyn ControlSystem + Send + Sync>>>
+    pub cli: Arc<Mutex<Option<Arc<dyn ControlSystem + Send + Sync>>>>,
 }
 
 impl PluginManager {
@@ -19,7 +19,7 @@ impl PluginManager {
         PluginManager {
             plugins: Arc::new(Mutex::new(Vec::new())),
             error_log_path,
-            cli: Mutex::new(None),
+            cli: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -49,44 +49,55 @@ impl PluginManager {
 
     async fn start_plugin(&self, config_path: PathBuf) -> Result<Plugin, PluginError> {
         let error_log_path = self.error_log_path.clone();
+        let cli = self.cli.clone();
 
         let mut plugin = Plugin::start(
             Box::new(config_path),
-            Box::new(move |package, config| {
-                match package {
-                    Error(content) => {
-                        let log_json = serde_json::to_string_pretty(&content).unwrap_or_else(|e| {
-                            format!("{{ \"error\": \"Failed to serialize error log: {}\" }}", e)
-                        });
+            Box::new(move |package, config| match package {
+                Error(content) => {
+                    let log_json = serde_json::to_string_pretty(&content).unwrap_or_else(|e| {
+                        format!("{{ \"error\": \"Failed to serialize error log: {}\" }}", e)
+                    });
 
-                        let timestamp =
-                            chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+                    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
-                        let filename = format!("error_{}_{}.json", config.plugin_name, timestamp);
-                        let filepath = error_log_path.join(filename);
+                    let filename = format!("error_{}_{}.json", config.plugin_name, timestamp);
+                    let filepath = error_log_path.join(filename);
 
-                        tokio::spawn(async move {
-                            if let Err(e) = tokio::fs::write(&filepath, log_json).await {
-                                error!("Failed to write error log to file: {}", e);
-                            }
-                        });
-                    }
-                    Log(content) => {
-                        match content.level.as_str() {
-                            "debug" => debug!("[Plugin {}] {}", config.plugin_name, content.message),
-                            "info" => info!("[Plugin {}] {}", config.plugin_name, content.message),
-                            "warning" => warn!("[Plugin {}] {}", config.plugin_name, content.message),
-                            "error" => error!("[Plugin {}] {}", config.plugin_name, content.message),
-                            "critical" => error!("[CRITICAL] [Plugin {}] {}", config.plugin_name, content.message),
-                            _ => info!("[Plugin {}] {}: {}", config.plugin_name, content.level, content.message),
+                    tokio::spawn(async move {
+                        if let Err(e) = tokio::fs::write(&filepath, log_json).await {
+                            error!("Failed to write error log to file: {}", e);
                         }
-                    }
-                    _ => {}
+                    });
                 }
+                Log(content) => match content.level.as_str() {
+                    "debug" => debug!("[Plugin {}] {}", config.plugin_name, content.message),
+                    "info" => info!("[Plugin {}] {}", config.plugin_name, content.message),
+                    "warning" => warn!("[Plugin {}] {}", config.plugin_name, content.message),
+                    "error" => error!("[Plugin {}] {}", config.plugin_name, content.message),
+                    "critical" => error!(
+                        "[CRITICAL] [Plugin {}] {}",
+                        config.plugin_name, content.message
+                    ),
+                    _ => info!(
+                        "[Plugin {}] {}: {}",
+                        config.plugin_name, content.level, content.message
+                    ),
+                },
+                CliRequest(request) => {
+                    let cli_clone = cli.clone();
+                    tokio::spawn(async move {
+                        if let Some(control_system) = cli_clone.lock().await.as_deref() {
+                            let response = control_system.run_command(request);
+                            // TODO: send response back
+                        }
+                    });
+                }
+                _ => {}
             }),
         )
-            .await
-            .map_err(move |err| PluginError::StartupFailed(format!("Startup failed {}", err)))?;
+        .await
+        .map_err(move |err| PluginError::StartupFailed(format!("Startup failed {}", err)))?;
 
         plugin
             .init()
@@ -124,7 +135,9 @@ impl PluginManager {
         let plugin = plugins
             .iter()
             .find(|p| p.config.plugin_name == plugin_name)
-            .ok_or_else(|| PluginError::ConfigError(format!("Plugin '{}' not found", plugin_name)))?;
+            .ok_or_else(|| {
+                PluginError::ConfigError(format!("Plugin '{}' not found", plugin_name))
+            })?;
 
         // Nur stoppen, wenn das Plugin läuft
         if plugin.state != State::Running {
@@ -135,7 +148,10 @@ impl PluginManager {
         }
 
         // Plugin stoppen (bleibt aber in der Liste)
-        plugin.stop().await.map_err(|e| PluginError::ProcessError(format!("Failed to stop plugin: {}", e)))?;
+        plugin
+            .stop()
+            .await
+            .map_err(|e| PluginError::ProcessError(format!("Failed to stop plugin: {}", e)))?;
 
         info!("Plugin '{}' stopped successfully", plugin_name);
         Ok(format!("Plugin '{}' stopped successfully", plugin_name))
@@ -148,13 +164,21 @@ impl PluginManager {
         let plugin_index = plugins
             .iter()
             .position(|p| p.config.plugin_name == plugin_name)
-            .ok_or_else(|| PluginError::ConfigError(format!("Plugin '{}' not found in plugin list", plugin_name)))?;
+            .ok_or_else(|| {
+                PluginError::ConfigError(format!(
+                    "Plugin '{}' not found in plugin list",
+                    plugin_name
+                ))
+            })?;
 
         let existing_plugin = &plugins[plugin_index];
 
         // Prüfe, ob das Plugin bereits läuft
         if existing_plugin.state == State::Running {
-            return Err(PluginError::ProcessError(format!("Plugin '{}' is already running", plugin_name)));
+            return Err(PluginError::ProcessError(format!(
+                "Plugin '{}' is already running",
+                plugin_name
+            )));
         }
 
         // Hole den Config-Pfad vom existierenden Plugin

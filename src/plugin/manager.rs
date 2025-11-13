@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use crate::control_system::control_system::ControlSystem;
 use crate::plugin::interfaces::{Plugin, PluginError, State};
 use crate::plugin::models::Package::{CliRequest, Error, Log};
@@ -7,6 +8,8 @@ use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
+use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
+use crate::plugin::PackageHandler;
 
 pub struct PluginManager {
     plugins: Arc<Mutex<Vec<Arc<Plugin>>>>,
@@ -42,15 +45,17 @@ impl PluginManager {
 
             let plugin = self.start_plugin(config_path).await?;
 
-            self.plugins.lock().await.push(Arc::new(plugin));
+            self.plugins.lock().await.push(plugin);
         }
         Ok(())
     }
 
-    async fn start_plugin(&self, config_path: PathBuf) -> Result<Plugin, PluginError> {
+    async fn start_plugin(&self, config_path: PathBuf) -> Result<Arc<Plugin>, PluginError> {
         let error_log_path = self.error_log_path.clone();
         let cli = self.cli.clone();
 
+        let plugin_clone: Arc<Mutex<Option<Arc<Box<dyn PackageHandler>>>>> = Arc::new(Mutex::new(None));
+        let plugin_clone2 = plugin_clone.clone();
         let mut plugin = Plugin::start(
             Box::new(config_path),
             Box::new(move |package, config| match package {
@@ -86,10 +91,11 @@ impl PluginManager {
                 },
                 CliRequest(request) => {
                     let cli_clone = cli.clone();
+                    let plugin_clone = plugin_clone2.clone();
                     tokio::spawn(async move {
+                        plugin_clone.clone().lock().await.as_ref().unwrap().send_package(vec![1, 2, 3]).expect("TODO: panic message");
                         if let Some(control_system) = cli_clone.lock().await.as_deref() {
                             let response = control_system.run_command(request);
-                            // TODO: send response back
                         }
                     });
                 }
@@ -104,7 +110,10 @@ impl PluginManager {
             .await
             .map_err(move |err| PluginError::StartupFailed(format!("Startup failed {}", err)))?;
 
-        Ok(plugin)
+        let plugin_arc = Arc::new(plugin);
+        *plugin_clone.lock().await = Some(Arc::new(plugin_arc.clone().communicator.package_handler));
+
+        Ok(plugin_arc)
     }
 
     pub async fn get_active_plugins(&self) -> Vec<Arc<Plugin>> {
@@ -191,7 +200,7 @@ impl PluginManager {
 
         // Starte das Plugin neu
         let new_plugin = self.start_plugin(config_path).await?;
-        self.plugins.lock().await.push(Arc::new(new_plugin));
+        self.plugins.lock().await.push(new_plugin);
 
         info!("Plugin '{}' started successfully", plugin_name);
         Ok(format!("Plugin '{}' started successfully", plugin_name))

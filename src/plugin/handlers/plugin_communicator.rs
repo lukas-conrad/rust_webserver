@@ -15,7 +15,7 @@ use tokio::time::timeout;
 pub type CallbackFn = Box<dyn Fn(Package) + Send + Sync + 'static>;
 
 pub struct AsyncPluginCommunicator {
-    package_handler: Box<dyn PackageHandler>,
+    pub package_handler: Box<dyn PackageHandler>,
     waiting_handles: Arc<Mutex<HashMap<i64, oneshot::Sender<PackageNormalResponse>>>>,
     handshake_request: Arc<Mutex<Option<oneshot::Sender<PackageHandshakeResponse>>>>,
     pub plugin_config: Arc<PluginConfig>,

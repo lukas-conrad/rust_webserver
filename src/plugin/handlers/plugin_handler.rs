@@ -92,7 +92,7 @@ impl Plugin {
         let plugin = Self {
             process: Arc::new(Mutex::new(process)),
             state: State::Starting,
-            communicator: interface,
+            communicator: Box::new(interface),
             config,
             config_dir: config_path,
             error_callback: None,

@@ -1,7 +1,7 @@
 use std::future::Future;
 use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
 use crate::plugin::models;
-use crate::plugin::models::{PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse, PluginConfig};
+use crate::plugin::models::{Package, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse, PluginConfig};
 use models::PackageGen;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -60,7 +60,7 @@ pub trait PluginCommunicator {
         package: PackageNormalRequest,
     ) -> Result<PackageNormalResponse, PackageHandlerError>;
 
-    fn send_package<T: Serialize>(&self, package: PackageGen<T>) -> Result<(), PackageHandlerError>;
+    fn send_package(&self, package: Package) -> Result<(), PackageHandlerError>;
 
     async fn send_handshake(
         &self,
@@ -83,7 +83,7 @@ pub struct Plugin {
 
     pub state: State,
 
-    pub communicator: AsyncPluginCommunicator,
+    pub communicator: Box<dyn PluginCommunicator>,
 
     pub config_dir: Box<PathBuf>,
 

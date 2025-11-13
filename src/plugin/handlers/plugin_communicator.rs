@@ -1,6 +1,6 @@
 use crate::plugin::interfaces::{PackageHandlerError, PluginCommunicator};
 use crate::plugin::models::{
-    PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse, PackageGen, Package,
+    Package, PackageGen, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse,
     PackageType, PluginConfig,
 };
 use crate::plugin::PackageHandler;
@@ -113,7 +113,7 @@ impl PluginCommunicator for AsyncPluginCommunicator {
         // info!("Sending request package with ID {}", package_id);
         self.waiting_handles.lock().await.insert(package_id, sender);
 
-        self.send_package(package)?;
+        self.send_package(package.to_package())?;
 
         match timeout(
             Duration::from_millis(self.plugin_config.max_request_timeout),
@@ -151,7 +151,7 @@ impl PluginCommunicator for AsyncPluginCommunicator {
         }
     }
 
-    fn send_package<T: Serialize>(&self, package: PackageGen<T>) -> Result<(), PackageHandlerError> {
+    fn send_package(&self, package: Package) -> Result<(), PackageHandlerError> {
         let json_string = serde_json::to_string(&package)
             .map_err(|e| PackageHandlerError::SerializationError(e.to_string()))?;
 
@@ -171,7 +171,7 @@ impl PluginCommunicator for AsyncPluginCommunicator {
 
         let _ = self.handshake_request.lock().await.insert(sender);
 
-        self.send_package(package)?;
+        self.send_package(package.to_package())?;
 
         let timeout_duration = self.plugin_config.max_startup_time;
         match timeout(Duration::from_millis(timeout_duration), receiver).await {

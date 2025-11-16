@@ -1,12 +1,16 @@
-use std::future::Future;
 use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
 use crate::plugin::models;
-use crate::plugin::models::{Package, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse, PluginConfig};
+use crate::plugin::models::{
+    Package, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest,
+    PackageNormalResponse, PluginConfig,
+};
 use models::PackageGen;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use async_trait::async_trait;
 use strum::Display;
 use tokio::process::Child;
 use tokio::sync::Mutex;
@@ -49,12 +53,13 @@ pub enum PluginError {
 pub trait PackageHandler: Sync + Send {
     fn send_package(&self, data: Vec<u8>) -> Result<(), PackageHandlerError>;
 
-    fn set_callback_function(&mut self, callback: CallbackFn) -> Pin<Box< dyn Future<Output = ()>>>;
+    fn set_callback_function(&mut self, callback: CallbackFn) -> Pin<Box<dyn Future<Output = ()>>>;
 
     fn start_reader_loop(&self);
 }
 
-pub trait PluginCommunicator {
+#[async_trait]
+pub trait PluginCommunicator: Send + Sync {
     async fn send_request(
         &self,
         package: PackageNormalRequest,

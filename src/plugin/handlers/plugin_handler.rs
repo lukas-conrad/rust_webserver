@@ -117,7 +117,7 @@ impl Plugin {
 
     pub async fn stop(&self) -> Result<(), PackageHandlerError> {
         let request = PackageShutdownRequest::new(HashMap::new());
-        self.communicator.send_package(request)?;
+        self.communicator.send_package(request.to_package())?;
 
         // Wait for process termination
         let mut process_guard = self.process.lock().await;

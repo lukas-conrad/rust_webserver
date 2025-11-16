@@ -9,6 +9,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use async_trait::async_trait;
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
 
@@ -102,6 +103,7 @@ impl AsyncPluginCommunicator {
     }
 }
 
+#[async_trait]
 impl PluginCommunicator for AsyncPluginCommunicator {
     async fn send_request(
         &self,

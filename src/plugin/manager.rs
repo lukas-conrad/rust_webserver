@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use crate::control_system::control_system::ControlSystem;
-use crate::plugin::interfaces::{Plugin, PluginError, State};
-use crate::plugin::models::Package::{CliRequest, Error, Log};
+use crate::plugin::interfaces::{Plugin, PluginCommunicator, PluginError, State};
+use crate::plugin::models::Package::{CliRequest, CliResponse, Error, Log};
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,6 +9,7 @@ use tokio::fs;
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
 use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
+use crate::plugin::models::CliResponseContent;
 use crate::plugin::PackageHandler;
 
 pub struct PluginManager {
@@ -54,52 +55,61 @@ impl PluginManager {
         let error_log_path = self.error_log_path.clone();
         let cli = self.cli.clone();
 
-        let plugin_clone: Arc<Mutex<Option<Arc<Box<dyn PackageHandler>>>>> = Arc::new(Mutex::new(None));
+        let plugin_clone: Arc<Mutex<Option<Arc<Plugin>>>> = Arc::new(Mutex::new(None));
         let plugin_clone2 = plugin_clone.clone();
         let mut plugin = Plugin::start(
             Box::new(config_path),
-            Box::new(move |package, config| match package {
-                Error(content) => {
-                    let log_json = serde_json::to_string_pretty(&content).unwrap_or_else(|e| {
-                        format!("{{ \"error\": \"Failed to serialize error log: {}\" }}", e)
-                    });
+            Box::new(move |package, config| {
+                match package {
+                    Error(content) => {
+                        let log_json = serde_json::to_string_pretty(&content).unwrap_or_else(|e| {
+                            format!("{{ \"error\": \"Failed to serialize error log: {}\" }}", e)
+                        });
 
-                    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+                        let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
-                    let filename = format!("error_{}_{}.json", config.plugin_name, timestamp);
-                    let filepath = error_log_path.join(filename);
+                        let filename = format!("error_{}_{}.json", config.plugin_name, timestamp);
+                        let filepath = error_log_path.join(filename);
 
-                    tokio::spawn(async move {
-                        if let Err(e) = tokio::fs::write(&filepath, log_json).await {
-                            error!("Failed to write error log to file: {}", e);
-                        }
-                    });
-                }
-                Log(content) => match content.level.as_str() {
-                    "debug" => debug!("[Plugin {}] {}", config.plugin_name, content.message),
-                    "info" => info!("[Plugin {}] {}", config.plugin_name, content.message),
-                    "warning" => warn!("[Plugin {}] {}", config.plugin_name, content.message),
-                    "error" => error!("[Plugin {}] {}", config.plugin_name, content.message),
-                    "critical" => error!(
+                        tokio::spawn(async move {
+                            if let Err(e) = tokio::fs::write(&filepath, log_json).await {
+                                error!("Failed to write error log to file: {}", e);
+                            }
+                        });
+                    }
+                    Log(content) => match content.level.as_str() {
+                        "debug" => debug!("[Plugin {}] {}", config.plugin_name, content.message),
+                        "info" => info!("[Plugin {}] {}", config.plugin_name, content.message),
+                        "warning" => warn!("[Plugin {}] {}", config.plugin_name, content.message),
+                        "error" => error!("[Plugin {}] {}", config.plugin_name, content.message),
+                        "critical" => error!(
                         "[CRITICAL] [Plugin {}] {}",
                         config.plugin_name, content.message
                     ),
-                    _ => info!(
+                        _ => info!(
                         "[Plugin {}] {}: {}",
                         config.plugin_name, content.level, content.message
                     ),
-                },
-                CliRequest(request) => {
-                    let cli_clone = cli.clone();
-                    let plugin_clone = plugin_clone2.clone();
-                    tokio::spawn(async move {
-                        plugin_clone.clone().lock().await.as_ref().unwrap().send_package(vec![1, 2, 3]).expect("TODO: panic message");
-                        if let Some(control_system) = cli_clone.lock().await.as_deref() {
-                            let response = control_system.run_command(request);
-                        }
-                    });
+                    },
+                    CliRequest(request) => {
+                        let cli_clone = cli.clone();
+                        let plugin_clone = plugin_clone2.clone();
+                        tokio::spawn(async move {
+                            let plugin_guard = plugin_clone.lock().await;
+
+                            if let Some(control_system) = cli_clone.lock().await.as_deref() {
+                                if let Some(communicator) = plugin_guard.as_ref() {
+                                    let response = control_system.run_command(request);
+                                    communicator.communicator.send_package(CliResponse(CliResponseContent {
+                                        success: response.success,
+                                        response: response.message.to_json()
+                                    })).expect("Failed to send CLI response");
+                                }
+                            }
+                        });
+                    }
+                    _ => {}
                 }
-                _ => {}
             }),
         )
         .await
@@ -111,7 +121,7 @@ impl PluginManager {
             .map_err(move |err| PluginError::StartupFailed(format!("Startup failed {}", err)))?;
 
         let plugin_arc = Arc::new(plugin);
-        *plugin_clone.lock().await = Some(Arc::new(plugin_arc.clone().communicator.package_handler));
+        *plugin_clone.lock().await = Some(plugin_arc.clone());
 
         Ok(plugin_arc)
     }

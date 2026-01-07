@@ -1,16 +1,16 @@
 use std::ops::Deref;
 use crate::control_system::control_system::ControlSystem;
-use crate::plugin::interfaces::{Plugin, PluginCommunicator, PluginError, State};
-use crate::plugin::models::Package::{CliRequest, CliResponse, Error, Log};
+use crate::plugin_old::interfaces::{Plugin, PluginCommunicator, PluginError, State};
+use crate::plugin_old::models::Package::{CliRequest, CliResponse, Error, Log};
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
-use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
-use crate::plugin::models::CliResponseContent;
-use crate::plugin::PackageHandler;
+use crate::plugin_old::handlers::plugin_communicator::AsyncPluginCommunicator;
+use crate::plugin_old::models::CliResponseContent;
+use crate::plugin_old::PackageHandler;
 
 pub struct PluginManager {
     plugins: Arc<Mutex<Vec<Arc<Plugin>>>>,
@@ -42,7 +42,7 @@ impl PluginManager {
             .filter(|e| e.file_name().to_string_lossy() == "pluginConfig.json")
         {
             let config_path = entry.into_path();
-            info!("Found plugin config: {:?}", &config_path);
+            info!("Found plugin_old config: {:?}", &config_path);
 
             let plugin = self.start_plugin(config_path).await?;
 
@@ -170,7 +170,7 @@ impl PluginManager {
         plugin
             .stop()
             .await
-            .map_err(|e| PluginError::ProcessError(format!("Failed to stop plugin: {}", e)))?;
+            .map_err(|e| PluginError::ProcessError(format!("Failed to stop plugin_old: {}", e)))?;
 
         info!("Plugin '{}' stopped successfully", plugin_name);
         Ok(format!("Plugin '{}' stopped successfully", plugin_name))
@@ -185,7 +185,7 @@ impl PluginManager {
             .position(|p| p.config.plugin_name == plugin_name)
             .ok_or_else(|| {
                 PluginError::ConfigError(format!(
-                    "Plugin '{}' not found in plugin list",
+                    "Plugin '{}' not found in plugin_old list",
                     plugin_name
                 ))
             })?;
@@ -206,7 +206,7 @@ impl PluginManager {
         // Entferne das alte Plugin und starte ein neues
         // TODO: Es soll das Plugin nicht removen alla
         plugins.remove(plugin_index);
-        drop(plugins); // Release lock before starting plugin
+        drop(plugins); // Release lock before starting plugin_old
 
         // Starte das Plugin neu
         let new_plugin = self.start_plugin(config_path).await?;
@@ -248,10 +248,10 @@ impl PluginManager {
         }
 
         if errors.is_empty() {
-            Ok(format!("Stopped {} plugin(s) successfully", stopped_count))
+            Ok(format!("Stopped {} plugin_old(s) successfully", stopped_count))
         } else {
             Err(PluginError::ProcessError(format!(
-                "Stopped {} plugin(s), but {} failed: {}",
+                "Stopped {} plugin_old(s), but {} failed: {}",
                 stopped_count,
                 errors.len(),
                 errors.join(", ")
@@ -280,10 +280,10 @@ impl PluginManager {
         }
 
         if errors.is_empty() {
-            Ok(format!("Started {} plugin(s) successfully", started_count))
+            Ok(format!("Started {} plugin_old(s) successfully", started_count))
         } else {
             Ok(format!(
-                "Started {} plugin(s), {} failed: {}",
+                "Started {} plugin_old(s), {} failed: {}",
                 started_count,
                 errors.len(),
                 errors.join(", ")

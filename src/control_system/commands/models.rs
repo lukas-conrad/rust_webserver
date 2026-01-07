@@ -145,7 +145,7 @@ impl Message for TextMessage {
 }
 
 table! {
-    [use crate::plugin::interfaces::State;]
+    [use crate::plugin_old::interfaces::State;]
     plugin_table {
         name: String,
         state: State,

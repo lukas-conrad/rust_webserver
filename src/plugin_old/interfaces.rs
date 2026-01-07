@@ -1,6 +1,6 @@
-use crate::plugin::handlers::plugin_communicator::AsyncPluginCommunicator;
-use crate::plugin::models;
-use crate::plugin::models::{
+use crate::plugin_old::handlers::plugin_communicator::AsyncPluginCommunicator;
+use crate::plugin_old::models;
+use crate::plugin_old::models::{
     Package, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest,
     PackageNormalResponse, PluginConfig,
 };

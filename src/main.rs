@@ -11,12 +11,12 @@ use tokio::fs;
 use tokio::net::TcpListener;
 
 mod control_system;
-mod plugin;
+mod plugin_old;
 mod webserver;
 
 use crate::control_system::cli::CommandLineInterface;
 use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};
-use crate::plugin::PluginManager;
+use crate::plugin_old::PluginManager;
 use webserver::{WebServer, WebServerService};
 
 #[tokio::main]

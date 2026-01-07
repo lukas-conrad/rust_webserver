@@ -4,7 +4,7 @@ use super::commands::{
 };
 use super::models::{CommandDescriptor, CommandRequest, CommandResponse};
 use crate::control_system::commands::models::TextMessage;
-use crate::plugin::PluginManager;
+use crate::plugin_old::PluginManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use strum::Display;

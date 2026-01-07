@@ -407,7 +407,7 @@ mod tests {
     fn test_error_report_serialization() {
         let content = ErrorReportContent {
             error_code: 15902,
-            error_description: "Fatal error, plugin is corrupt".to_string(),
+            error_description: "Fatal error, plugin_old is corrupt".to_string(),
             policy: "restart".to_string(),
         };
 
@@ -417,7 +417,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&package).unwrap();
-        let expected = r#"{"packageType":"error","content":{"errorCode":15902,"errorDescription":"Fatal error, plugin is corrupt","policy":"restart"}}"#;
+        let expected = r#"{"packageType":"error","content":{"errorCode":15902,"errorDescription":"Fatal error, plugin_old is corrupt","policy":"restart"}}"#;
 
         assert_eq!(json, expected);
     }
@@ -428,7 +428,7 @@ mod tests {
             "packageType": "error",
             "content": {
                 "errorCode": 15902,
-                "errorDescription": "Fatal error, plugin is corrupt",
+                "errorDescription": "Fatal error, plugin_old is corrupt",
                 "policy": "restart"
             }
         }"#;
@@ -439,7 +439,7 @@ mod tests {
         assert_eq!(package.content.error_code, 15902);
         assert_eq!(
             package.content.error_description,
-            "Fatal error, plugin is corrupt"
+            "Fatal error, plugin_old is corrupt"
         );
         assert_eq!(package.content.policy, "restart");
     }

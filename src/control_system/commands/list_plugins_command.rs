@@ -2,7 +2,7 @@ use crate::control_system::commands::models::plugin_table::{Column, Table};
 use crate::control_system::commands::models::TextMessage;
 use crate::control_system::control_system::Command;
 use crate::control_system::models::{CommandDescriptor, CommandResponse};
-use crate::plugin::PluginManager;
+use crate::plugin_old::PluginManager;
 use std::sync::Arc;
 
 pub struct ListPluginsCommand {

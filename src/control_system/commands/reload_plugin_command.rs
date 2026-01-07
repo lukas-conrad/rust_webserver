@@ -1,7 +1,7 @@
 use crate::control_system::commands::models::TextMessage;
 use crate::control_system::control_system::Command;
 use crate::control_system::models::{CommandDescriptor, CommandResponse, ParameterDescriptor};
-use crate::plugin::PluginManager;
+use crate::plugin_old::PluginManager;
 use std::sync::Arc;
 
 pub struct ReloadPluginCommand {
@@ -54,18 +54,18 @@ impl Command for ReloadPluginCommand {
         match result {
             Ok(msg) => CommandResponse::success(TextMessage::new(msg)),
             Err(e) => {
-                CommandResponse::fail(TextMessage::new(format!("Failed to reload plugin: {}", e)))
+                CommandResponse::fail(TextMessage::new(format!("Failed to reload plugin_old: {}", e)))
             }
         }
     }
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "reload-plugin",
-            "Reload a plugin (stop and start) or all plugins",
+            "reload-plugin_old",
+            "Reload a plugin_old (stop and start) or all plugins",
             vec![ParameterDescriptor::new(
                 "plugin_name".to_string(),
-                "Name of the plugin to reload, or 'all' to reload all plugins".to_string(),
+                "Name of the plugin_old to reload, or 'all' to reload all plugins".to_string(),
                 true,
             )],
         )

@@ -1,7 +1,7 @@
 use crate::control_system::commands::models::TextMessage;
 use crate::control_system::control_system::Command;
 use crate::control_system::models::{CommandDescriptor, CommandResponse, ParameterDescriptor};
-use crate::plugin::PluginManager;
+use crate::plugin_old::PluginManager;
 use std::sync::Arc;
 
 pub struct StartPluginCommand {
@@ -53,18 +53,18 @@ impl Command for StartPluginCommand {
         match result {
             Ok(msg) => CommandResponse::success(TextMessage::new(msg)),
             Err(e) => {
-                CommandResponse::fail(TextMessage::new(format!("Failed to start plugin: {}", e)))
+                CommandResponse::fail(TextMessage::new(format!("Failed to start plugin_old: {}", e)))
             }
         }
     }
 
     fn get_command_descriptor(&self) -> CommandDescriptor {
         CommandDescriptor::new(
-            "start-plugin",
-            "Start a stopped plugin or all stopped/error plugins",
+            "start-plugin_old",
+            "Start a stopped plugin_old or all stopped/error plugins",
             vec![ParameterDescriptor::new(
                 "plugin_name".to_string(),
-                "Name of the plugin to start, or 'all' to start all stopped/error plugins"
+                "Name of the plugin_old to start, or 'all' to start all stopped/error plugins"
                     .to_string(),
                 true,
             )],

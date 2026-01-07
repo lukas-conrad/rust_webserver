@@ -1,6 +1,6 @@
-use crate::plugin::interfaces::CallbackFn;
-use crate::plugin::interfaces::PackageHandlerError;
-use crate::plugin::PackageHandler;
+use crate::plugin_old::interfaces::CallbackFn;
+use crate::plugin_old::interfaces::PackageHandlerError;
+use crate::plugin_old::PackageHandler;
 use log::{error, info};
 use std::future::Future;
 use std::pin::Pin;

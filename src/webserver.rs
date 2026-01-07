@@ -9,8 +9,8 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use base64::{Engine as _, engine::general_purpose};
 
-use crate::plugin::models::{HttpHeader, HttpRequest};
-use crate::plugin::{Plugin, PluginManager};
+use crate::plugin_old::models::{HttpHeader, HttpRequest};
+use crate::plugin_old::{Plugin, PluginManager};
 
 pub(crate) struct WebServer {
     plugin_manager: Arc<PluginManager>,
@@ -83,7 +83,7 @@ impl WebServer {
                 continue;
             }
 
-            // Update best match if this plugin is more specific
+            // Update best match if this plugin_old is more specific
             if let Some((best_specificity, _)) = best_match {
                 if specificity > best_specificity {
                     best_match = Some((specificity, plugin));
@@ -137,7 +137,7 @@ impl WebServer {
 
         match maybe_plugin {
             Some(plugin) => {
-                info!("Routing request to plugin: {}", plugin.config.plugin_name);
+                info!("Routing request to plugin_old: {}", plugin.config.plugin_name);
 
                 let (_, body) = req.into_parts();
                 let body_bytes = body.collect().await.unwrap_or_default().to_bytes();
@@ -158,7 +158,7 @@ impl WebServer {
                 {
                     Some(plugin) => plugin,
                     None => {
-                        error!("Failed to get plugin: {}", plugin.config.plugin_name);
+                        error!("Failed to get plugin_old: {}", plugin.config.plugin_name);
                         return Response::builder()
                             .status(StatusCode::INTERNAL_SERVER_ERROR)
                             .body(Full::new(Bytes::from("Plugin not available")))
@@ -182,7 +182,7 @@ impl WebServer {
 
                         let status_code = StatusCode::from_u16(plugin_response.status_code).unwrap_or_else(|_| {StatusCode::INTERNAL_SERVER_ERROR});
 
-                        // Convert the plugin response to an HTTP response
+                        // Convert the plugin_old response to an HTTP response
                         let mut response_builder = Response::builder().status(status_code);
 
                         // Add headers

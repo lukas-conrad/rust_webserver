@@ -14,10 +14,14 @@ mod control_system;
 mod plugin_old;
 mod webserver;
 
+mod webserver_old;
+mod io;
+mod plugin;
+
 use crate::control_system::cli::CommandLineInterface;
 use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};
 use crate::plugin_old::PluginManager;
-use webserver::{WebServer, WebServerService};
+use webserver_old::{WebServer, WebServerService};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {

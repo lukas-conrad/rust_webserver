@@ -1,17 +1,28 @@
-use crate::io::data_storage::FileSystemError::{LoadError, StoreError};
+use std::ops::Deref;
+use crate::io::data_storage::FileSystemError::{LoadError, NoDirError, StoreError};
+use async_trait::async_trait;
 use std::path::Path;
 use tokio::fs;
+use tokio::fs::DirEntry;
 
 #[derive(Debug)]
 pub enum FileSystemError {
     LoadError(String),
     StoreError(String),
     DeleteError(String),
+    NoDirError(String),
+    Other(String),
 }
+#[async_trait]
 pub trait DataStorage: Send {
     async fn load_data(&self, path: &Path) -> Result<Vec<u8>, FileSystemError>;
     async fn store_data(&self, data: Vec<u8>, path: &Path) -> Result<(), FileSystemError>;
     async fn delete_data(&self, path: &Path) -> Result<bool, FileSystemError>;
+    async fn list_files(
+        &self,
+        path: &Path,
+        recursive: bool,
+    ) -> Result<Vec<Box<Path>>, FileSystemError>;
 }
 
 pub struct FSDataStorage {
@@ -23,6 +34,7 @@ impl FSDataStorage {
         Self { base_path }
     }
 }
+#[async_trait]
 impl DataStorage for FSDataStorage {
     async fn load_data(&self, path: &Path) -> Result<Vec<u8>, FileSystemError> {
         let full_path = self.base_path.join(path);
@@ -69,6 +81,31 @@ impl DataStorage for FSDataStorage {
         }
 
         Ok(true)
+    }
+
+    async fn list_files(
+        &self,
+        path: &Path,
+        recursive: bool,
+    ) -> Result<Vec<Box<Path>>, FileSystemError> {
+        let full_path = self.base_path.join(path);
+        if !full_path.is_dir() {
+            return Err(NoDirError("path is not a directory".to_string()));
+        }
+
+        let read_dir_result = fs::read_dir(full_path)
+            .await
+            .map_err(move |e| FileSystemError::Other(e.to_string()));
+
+        let mut read_dir = read_dir_result?;
+        let mut entries: Vec<Box<Path>> = vec![];
+
+        while let Ok(Some(entry)) = read_dir.next_entry().await {
+            let path = Path::new(entry.path().as_os_str());
+            entries.push(Box::new(path));
+        }
+
+        Ok(entries)
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::io::data_storage::{DataStorage, FileSystemError};
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -47,7 +48,7 @@ impl Default for InMemoryDataStorage {
         Self::new()
     }
 }
-
+#[async_trait]
 impl DataStorage for InMemoryDataStorage {
     async fn load_data(&self, path: &Path) -> Result<Vec<u8>, FileSystemError> {
         let storage = self.storage.lock().unwrap();

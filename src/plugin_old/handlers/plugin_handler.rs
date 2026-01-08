@@ -2,7 +2,7 @@ use crate::plugin::plugin_config::PluginConfig;
 use crate::plugin_old::handlers::plugin_communicator::AsyncPluginCommunicator;
 use crate::plugin_old::handlers::plugin_handler::PluginError::StartupError;
 use crate::plugin_old::handlers::AsyncPackageHandler;
-use crate::plugin_old::interfaces::{PackageHandlerError, Plugin, PluginCommunicator, State};
+use crate::plugin_old::interfaces::{PackageHandlerError, Plugin, State};
 use crate::plugin_old::models;
 use crate::plugin_old::models::{
     HandshakeRequestContent, HttpRequest, HttpResponse, Package, PackageHandshakeRequest,

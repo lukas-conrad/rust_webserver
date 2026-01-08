@@ -1,18 +1,7 @@
+use crate::control_system::models::CommandRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::{Display, EnumString};
-use crate::control_system::models::CommandRequest;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginConfig {
-    pub plugin_name: String,
-    pub startup_command: String,
-    pub protocols: Vec<String>,
-    pub max_request_timeout: u64,
-    pub max_startup_time: u64,
-    pub request_information: RequestInformation,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -212,6 +201,7 @@ package! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugin::plugin_config::PluginConfig;
     use serde_json;
     use std::collections::HashMap;
 

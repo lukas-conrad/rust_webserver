@@ -1,17 +1,17 @@
 use crate::plugin_old::interfaces::{PackageHandlerError, PluginCommunicator};
 use crate::plugin_old::models::{
     Package, PackageGen, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse,
-    PackageType, PluginConfig,
+    PackageType,
 };
 use crate::plugin_old::PackageHandler;
 use log::{error, info};
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use async_trait::async_trait;
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
+use crate::plugin::plugin_config::PluginConfig;
 
 pub type CallbackFn = Box<dyn Fn(Package) + Send + Sync + 'static>;
 

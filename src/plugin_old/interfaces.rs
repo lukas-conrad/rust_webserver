@@ -1,16 +1,15 @@
-use crate::plugin_old::handlers::plugin_communicator::AsyncPluginCommunicator;
+use crate::plugin::plugin_config::PluginConfig;
 use crate::plugin_old::models;
 use crate::plugin_old::models::{
     Package, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest,
-    PackageNormalResponse, PluginConfig,
+    PackageNormalResponse,
 };
-use models::PackageGen;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use async_trait::async_trait;
 use strum::Display;
 use tokio::process::Child;
 use tokio::sync::Mutex;

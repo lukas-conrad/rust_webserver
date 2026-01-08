@@ -1,16 +1,14 @@
-use std::ops::Deref;
 use crate::control_system::control_system::ControlSystem;
 use crate::plugin_old::interfaces::{Plugin, PluginCommunicator, PluginError, State};
+use crate::plugin_old::models::CliResponseContent;
 use crate::plugin_old::models::Package::{CliRequest, CliResponse, Error, Log};
+use crate::plugin_old::PackageHandler;
 use log::{debug, error, info, warn};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
-use crate::plugin_old::handlers::plugin_communicator::AsyncPluginCommunicator;
-use crate::plugin_old::models::CliResponseContent;
-use crate::plugin_old::PackageHandler;
 
 pub struct PluginManager {
     plugins: Arc<Mutex<Vec<Arc<Plugin>>>>,

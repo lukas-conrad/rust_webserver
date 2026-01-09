@@ -2,10 +2,11 @@ use crate::io::data_storage::FileSystemError::{LoadError, NoDirError, Other, Sto
 use async_trait::async_trait;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use strum::Display;
 use tokio::fs;
 use tokio::fs::DirEntry;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum FileSystemError {
     LoadError(String),
     StoreError(String),

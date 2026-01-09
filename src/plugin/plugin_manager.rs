@@ -29,6 +29,10 @@ impl PluginManager {
             data_storage,
         }
     }
+    
+    async fn start_plugins(plugin_entries: &Vec<PluginEntry>) {
+        
+    }
 
     async fn scan_plugins(&mut self, plugins_path: &Path) -> Result<(), PluginError> {
         let files = self

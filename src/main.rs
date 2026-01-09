@@ -17,6 +17,7 @@ mod webserver;
 mod webserver_old;
 mod io;
 mod plugin;
+mod plugin_communication;
 
 use crate::control_system::cli::CommandLineInterface;
 use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};

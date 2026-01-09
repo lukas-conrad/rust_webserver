@@ -1,4 +1,4 @@
-use crate::plugin_old::interfaces::{PackageHandlerError, PluginCommunicator};
+use crate::plugin_old::interfaces::{PackageHandlerError, PluginCommunicatorOld};
 use crate::plugin_old::models::{
     Package, PackageGen, PackageHandshakeRequest, PackageHandshakeResponse, PackageNormalRequest, PackageNormalResponse,
     PackageType,
@@ -104,7 +104,7 @@ impl AsyncPluginCommunicator {
 }
 
 #[async_trait]
-impl PluginCommunicator for AsyncPluginCommunicator {
+impl PluginCommunicatorOld for AsyncPluginCommunicator {
     async fn send_request(
         &self,
         package: PackageNormalRequest,

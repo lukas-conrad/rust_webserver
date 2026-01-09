@@ -58,7 +58,7 @@ pub trait PackageHandler: Sync + Send {
 }
 
 #[async_trait]
-pub trait PluginCommunicator: Send + Sync {
+pub trait PluginCommunicatorOld: Send + Sync {
     async fn send_request(
         &self,
         package: PackageNormalRequest,
@@ -87,7 +87,7 @@ pub struct Plugin {
 
     pub state: State,
 
-    pub communicator: Box<dyn PluginCommunicator>,
+    pub communicator: Box<dyn PluginCommunicatorOld>,
 
     pub config_dir: Box<PathBuf>,
 

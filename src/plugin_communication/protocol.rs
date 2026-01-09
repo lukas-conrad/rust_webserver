@@ -1,5 +1,5 @@
 use crate::plugin::plugin_entry::PluginEntry;
-use crate::plugin_communication::PluginCommunicator::PluginCommunicator;
+use crate::plugin_communication::plugin_communicator::PluginCommunicator;
 use crate::plugin_old::models::Package;
 use async_trait::async_trait;
 use strum::Display;
@@ -9,8 +9,6 @@ pub enum ProtocolError {
     StartupError(String),
     StopError(String),
 }
-pub type Listener = Box<dyn Fn(Package) + Send + Sync>;
-pub type Filter = Box<dyn Fn(Package) -> bool + Send + Sync>;
 
 #[async_trait]
 pub trait Protocol {

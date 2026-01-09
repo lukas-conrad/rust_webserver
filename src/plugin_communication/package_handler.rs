@@ -1,9 +1,10 @@
+use futures::future::BoxFuture;
 use futures::{AsyncRead, AsyncReadExt};
 use std::sync::Arc;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
 
-pub type ArrayListener = Box<dyn Fn(Vec<u8>) + Send>;
+pub type ArrayListener = Box<dyn Fn(Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync>;
 pub struct PackageHandler {
     write: Mutex<Box<dyn AsyncWrite + Unpin + Send>>,
     listener: Mutex<ArrayListener>,
@@ -27,7 +28,7 @@ impl PackageHandler {
                     Ok(data) => {
                         let package_handler = &package_handler_clone.clone();
                         let listener = package_handler.listener.lock().await;
-                        listener(data);
+                        let _ = listener(data).await;
                     }
                     Err(err) => {
                         // TODO: Error handling

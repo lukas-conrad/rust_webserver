@@ -41,7 +41,7 @@ impl Command for ListPluginsCommand {
                 Column {
                     name: plugin.config.plugin_name.clone(),
                     state: plugin.state.clone(),
-                    protocols: plugin.config.protocols.join(", "),
+                    protocols: plugin.config.protocol.to_string(),
                     startup_command: plugin.config.startup_command.clone(),
                     max_request_timeout: format!("{}ms", plugin.config.max_request_timeout),
                     request_methods: plugin

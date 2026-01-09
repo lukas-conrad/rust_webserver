@@ -22,6 +22,6 @@ impl PluginManager {
     }
 
     async fn scan_plugins(&self, plugins_path: &Path) -> Result<(), PluginError> {
-        
+        todo!()
     }
 }

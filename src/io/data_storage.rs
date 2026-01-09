@@ -1,7 +1,7 @@
-use std::ops::Deref;
-use crate::io::data_storage::FileSystemError::{LoadError, NoDirError, StoreError};
+use crate::io::data_storage::FileSystemError::{LoadError, NoDirError, Other, StoreError};
 use async_trait::async_trait;
-use std::path::Path;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tokio::fs::DirEntry;
 
@@ -32,6 +32,27 @@ pub struct FSDataStorage {
 impl FSDataStorage {
     pub fn new(base_path: Box<Path>) -> Self {
         Self { base_path }
+    }
+
+    async fn read_dir(
+        full_path: PathBuf,
+    ) -> Result<(Vec<DirEntry>, Vec<DirEntry>), FileSystemError> {
+        let mut read_dir = fs::read_dir(full_path)
+            .await
+            .map_err(move |e| Other(e.to_string()))?;
+
+        let mut directories: Vec<DirEntry> = vec![];
+        let mut entries: Vec<DirEntry> = vec![];
+
+        while let Ok(Some(entry)) = read_dir.next_entry().await {
+            let file_type = entry.file_type().await.unwrap();
+            if file_type.is_dir() {
+                directories.push(entry);
+            } else if file_type.is_file() {
+                entries.push(entry);
+            }
+        }
+        Ok((directories, entries))
     }
 }
 #[async_trait]
@@ -93,19 +114,26 @@ impl DataStorage for FSDataStorage {
             return Err(NoDirError("path is not a directory".to_string()));
         }
 
-        let read_dir_result = fs::read_dir(full_path)
-            .await
-            .map_err(move |e| FileSystemError::Other(e.to_string()));
+        let (mut directories, mut file_entries) = Self::read_dir(full_path).await?;
 
-        let mut read_dir = read_dir_result?;
-        let mut entries: Vec<Box<Path>> = vec![];
-
-        while let Ok(Some(entry)) = read_dir.next_entry().await {
-            let path = Path::new(entry.path().as_os_str());
-            entries.push(Box::new(path));
+        if recursive {
+            while !directories.is_empty() {
+                let dir_path = directories.swap_remove(0).path();
+                let (mut dirs, mut entries) = Self::read_dir(dir_path).await?;
+                directories.append(&mut dirs);
+                file_entries.append(&mut entries);
+            }
         }
 
-        Ok(entries)
+        Ok(file_entries
+            .iter()
+            .map(|entry| {
+                let buf = entry.path();
+                let path = buf.strip_prefix(&self.base_path).unwrap();
+                // TODO: unwrap may panic
+                return path.to_path_buf().into_boxed_path();
+            })
+            .collect())
     }
 }
 
@@ -298,5 +326,583 @@ mod tests {
             .await
             .expect("Failed to load binary data");
         assert_eq!(binary_data, loaded_data);
+    }
+
+    #[tokio::test]
+    async fn test_list_files_non_recursive() {
+        let (storage, temp_dir) = create_test_storage();
+
+        // Create test files structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("subdir/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"4".to_vec(), Path::new("subdir/nested/file4.txt"))
+            .await
+            .unwrap();
+
+        // List files at root level (non-recursive)
+        let files = storage.list_files(Path::new(""), false).await.unwrap();
+
+        // Should only return direct children (file1.txt, file2.txt, subdir)
+        assert!(
+            files.len() >= 2,
+            "Expected at least 2 entries, got {}",
+            files.len()
+        );
+
+        // Check that the direct files are included
+        let file_names: Vec<String> = files
+            .iter()
+            .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
+            .collect();
+
+        assert!(
+            file_names.contains(&"file1.txt".to_string()),
+            "file1.txt should be in the list"
+        );
+        assert!(
+            file_names.contains(&"file2.txt".to_string()),
+            "file2.txt should be in the list"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_in_subdirectory() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create test files structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("dir1/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("dir1/file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("dir1/subdir/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"4".to_vec(), Path::new("dir2/file4.txt"))
+            .await
+            .unwrap();
+
+        // List files in dir1 (non-recursive)
+        let files = storage.list_files(Path::new("dir1"), false).await.unwrap();
+
+        // Should only return direct children in dir1
+        let file_names: Vec<String> = files
+            .iter()
+            .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
+            .collect();
+
+        assert!(
+            file_names.contains(&"file1.txt".to_string()),
+            "file1.txt should be in dir1"
+        );
+        assert!(
+            file_names.contains(&"file2.txt".to_string()),
+            "file2.txt should be in dir1"
+        );
+
+        // Verify that files from other directories are not included
+        assert!(
+            !file_names.contains(&"file4.txt".to_string()),
+            "file4.txt from dir2 should not be in the list"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_empty_directory() {
+        let (storage, temp_dir) = create_test_storage();
+
+        // Create an empty subdirectory
+        let empty_dir = temp_dir.path().join("empty_dir");
+        std::fs::create_dir(&empty_dir).expect("Failed to create empty directory");
+
+        // List files in the empty directory
+        let files = storage
+            .list_files(Path::new("empty_dir"), false)
+            .await
+            .unwrap();
+
+        assert_eq!(files.len(), 0, "Empty directory should return no files");
+    }
+
+    #[tokio::test]
+    async fn test_list_files_nonexistent_directory() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Try to list files in a non-existent directory
+        let result = storage.list_files(Path::new("nonexistent"), false).await;
+
+        assert!(
+            result.is_err(),
+            "Listing non-existent directory should return an error"
+        );
+        match result {
+            Err(NoDirError(_)) => {
+                // Expected error type
+            }
+            Err(Other(_)) => {
+                // Also acceptable (directory doesn't exist)
+            }
+            _ => panic!("Expected NoDirError or Other error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_files_on_file_not_directory() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create a file
+        storage
+            .store_data(b"content".to_vec(), Path::new("file.txt"))
+            .await
+            .unwrap();
+
+        // Try to list files on a file (not a directory)
+        let result = storage.list_files(Path::new("file.txt"), false).await;
+
+        assert!(result.is_err(), "Listing a file should return an error");
+        match result {
+            Err(NoDirError(_)) => {
+                // Expected error type
+            }
+            _ => panic!("Expected NoDirError when listing a file"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_files_returns_relative_paths() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create test files
+        storage
+            .store_data(b"1".to_vec(), Path::new("dir/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("dir/file2.txt"))
+            .await
+            .unwrap();
+
+        // List files in dir
+        let files = storage.list_files(Path::new("dir"), false).await.unwrap();
+
+        // Check that returned paths are relative to base_path
+        for file in &files {
+            let path_str = file.to_str().unwrap();
+            // The path should start with "dir/"
+            assert!(
+                path_str.starts_with("dir"),
+                "Path should be relative and start with 'dir': {}",
+                path_str
+            );
+            // Should not contain the temp directory path
+            assert!(
+                !path_str.contains("tmp"),
+                "Path should not contain absolute temp path: {}",
+                path_str
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_files_with_nested_structure() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create a more complex structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("root.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("level1/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("level1/file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"4".to_vec(), Path::new("level1/level2/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"5".to_vec(), Path::new("level1/level2/level3/file4.txt"))
+            .await
+            .unwrap();
+
+        // List level1 directory (non-recursive)
+        let files = storage
+            .list_files(Path::new("level1"), false)
+            .await
+            .unwrap();
+
+        // Count actual files (not subdirectories)
+        let file_count = files
+            .iter()
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.ends_with(".txt"))
+                    .unwrap_or(false)
+            })
+            .count();
+
+        // Should have file1.txt and file2.txt (direct children only)
+        assert_eq!(
+            file_count, 2,
+            "Should list only direct file children in level1"
+        );
+    }
+
+    // Tests for recursive listing
+
+    #[tokio::test]
+    async fn test_list_files_recursive_root() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create test files structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("subdir/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"4".to_vec(), Path::new("subdir/nested/file4.txt"))
+            .await
+            .unwrap();
+
+        // List files at root level (recursive)
+        let files = storage.list_files(Path::new(""), true).await.unwrap();
+
+        // Extract all file names for easier testing
+        let file_paths: Vec<String> = files
+            .iter()
+            .map(|p| p.to_str().unwrap().to_string())
+            .collect();
+
+        // Should include all files recursively
+        assert!(
+            file_paths.iter().any(|p| p.contains("file1.txt")),
+            "Should include file1.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file2.txt")),
+            "Should include file2.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file3.txt")),
+            "Should include file3.txt from subdir"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file4.txt")),
+            "Should include file4.txt from nested"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_subdirectory() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create test files structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("dir1/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("dir1/file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("dir1/subdir/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"4".to_vec(), Path::new("dir1/subdir/nested/file4.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"5".to_vec(), Path::new("dir2/file5.txt"))
+            .await
+            .unwrap();
+
+        // List files in dir1 (recursive)
+        let files = storage.list_files(Path::new("dir1"), true).await.unwrap();
+
+        let file_paths: Vec<String> = files
+            .iter()
+            .map(|p| p.to_str().unwrap().to_string())
+            .collect();
+
+        // Should include all files under dir1 recursively
+        assert!(
+            file_paths
+                .iter()
+                .any(|p| p.contains("dir1") && p.contains("file1.txt")),
+            "Should include dir1/file1.txt"
+        );
+        assert!(
+            file_paths
+                .iter()
+                .any(|p| p.contains("dir1") && p.contains("file2.txt")),
+            "Should include dir1/file2.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file3.txt")),
+            "Should include file3.txt from subdir"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file4.txt")),
+            "Should include file4.txt from nested"
+        );
+
+        // Should not include files from dir2
+        assert!(
+            !file_paths.iter().any(|p| p.contains("file5.txt")),
+            "Should not include file5.txt from dir2"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_deep_nesting() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create deeply nested structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("level1/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("level1/level2/file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("level1/level2/level3/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(
+                b"4".to_vec(),
+                Path::new("level1/level2/level3/level4/file4.txt"),
+            )
+            .await
+            .unwrap();
+        storage
+            .store_data(
+                b"5".to_vec(),
+                Path::new("level1/level2/level3/level4/level5/file5.txt"),
+            )
+            .await
+            .unwrap();
+
+        // List level1 recursively
+        let files = storage.list_files(Path::new("level1"), true).await.unwrap();
+
+        let file_paths: Vec<String> = files
+            .iter()
+            .map(|p| p.to_str().unwrap().to_string())
+            .collect();
+
+        // Should find all 5 files at various depths
+        assert!(
+            file_paths.iter().any(|p| p.contains("file1.txt")),
+            "Should include file1.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file2.txt")),
+            "Should include file2.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file3.txt")),
+            "Should include file3.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file4.txt")),
+            "Should include file4.txt"
+        );
+        assert!(
+            file_paths.iter().any(|p| p.contains("file5.txt")),
+            "Should include file5.txt"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_vs_non_recursive() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create test structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("dir/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("dir/file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("dir/sub1/file3.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"4".to_vec(), Path::new("dir/sub2/file4.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"5".to_vec(), Path::new("dir/sub1/deep/file5.txt"))
+            .await
+            .unwrap();
+
+        // Non-recursive listing
+        let files_non_recursive = storage.list_files(Path::new("dir"), false).await.unwrap();
+        let non_recursive_count = files_non_recursive
+            .iter()
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.ends_with(".txt"))
+                    .unwrap_or(false)
+            })
+            .count();
+
+        // Recursive listing
+        let files_recursive = storage.list_files(Path::new("dir"), true).await.unwrap();
+        let recursive_count = files_recursive
+            .iter()
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.ends_with(".txt"))
+                    .unwrap_or(false)
+            })
+            .count();
+
+        // Non-recursive should only have 2 direct files
+        assert_eq!(
+            non_recursive_count, 2,
+            "Non-recursive should find 2 direct files"
+        );
+
+        // Recursive should find all 5 files
+        assert_eq!(recursive_count, 5, "Recursive should find all 5 files");
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_empty_directory() {
+        let (storage, temp_dir) = create_test_storage();
+
+        // Create an empty subdirectory
+        let empty_dir = temp_dir.path().join("empty_dir");
+        std::fs::create_dir(&empty_dir).expect("Failed to create empty directory");
+
+        // List files in the empty directory (recursive)
+        let files = storage
+            .list_files(Path::new("empty_dir"), true)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            files.len(),
+            0,
+            "Empty directory should return no files even with recursive=true"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_mixed_content() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create structure with various file types
+        storage
+            .store_data(b"txt".to_vec(), Path::new("mixed/file.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"json".to_vec(), Path::new("mixed/config.json"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"md".to_vec(), Path::new("mixed/readme.md"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"nested".to_vec(), Path::new("mixed/sub/data.dat"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"deep".to_vec(), Path::new("mixed/sub/deep/file.bin"))
+            .await
+            .unwrap();
+
+        // List all files recursively
+        let files = storage.list_files(Path::new("mixed"), true).await.unwrap();
+
+        // Should find all 5 files
+        let file_count = files
+            .iter()
+            .filter(|p| p.is_file() || p.to_str().unwrap().contains("."))
+            .count();
+
+        assert!(
+            file_count >= 5,
+            "Should find at least 5 files in recursive listing"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_files_recursive_returns_relative_paths() {
+        let (storage, _temp_dir) = create_test_storage();
+
+        // Create nested structure
+        storage
+            .store_data(b"1".to_vec(), Path::new("base/file1.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"2".to_vec(), Path::new("base/sub/file2.txt"))
+            .await
+            .unwrap();
+        storage
+            .store_data(b"3".to_vec(), Path::new("base/sub/deep/file3.txt"))
+            .await
+            .unwrap();
+
+        // List recursively
+        let files = storage.list_files(Path::new("base"), true).await.unwrap();
+
+        // All paths should be relative and start with "base"
+        for file in &files {
+            let path_str = file.to_str().unwrap();
+            assert!(
+                path_str.starts_with("base"),
+                "Path should start with 'base': {}",
+                path_str
+            );
+            assert!(
+                !path_str.contains("tmp"),
+                "Path should not contain absolute temp path: {}",
+                path_str
+            );
+        }
     }
 }

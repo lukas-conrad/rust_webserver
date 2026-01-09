@@ -68,6 +68,53 @@ impl DataStorage for InMemoryDataStorage {
         let mut storage = self.storage.lock().unwrap();
         Ok(storage.remove(path).is_some())
     }
+
+    async fn list_files(
+        &self,
+        path: &Path,
+        recursive: bool,
+    ) -> Result<Vec<Box<Path>>, FileSystemError> {
+        let storage = self.storage.lock().unwrap();
+        let mut entries = Vec::new();
+
+        // Normalize the search path
+        let search_path = if path.to_str() == Some("") || path.to_str() == Some(".") {
+            PathBuf::new()
+        } else {
+            path.to_path_buf()
+        };
+
+        for stored_path in storage.keys() {
+            // Check if the stored path starts with the search path
+            if search_path.as_os_str().is_empty() || stored_path.starts_with(&search_path) {
+                if search_path.as_os_str().is_empty() {
+                    // Root level - list all files
+                    if recursive {
+                        entries.push(stored_path.clone().into_boxed_path());
+                    } else {
+                        // Only list files at the top level (no subdirectories)
+                        if stored_path.components().count() == 1 {
+                            entries.push(stored_path.clone().into_boxed_path());
+                        }
+                    }
+                } else {
+                    // Subdirectory - list files relative to search path
+                    if let Ok(relative) = stored_path.strip_prefix(&search_path) {
+                        if recursive {
+                            entries.push(stored_path.clone().into_boxed_path());
+                        } else {
+                            // Only include direct children (one level deep)
+                            if relative.components().count() == 1 {
+                                entries.push(stored_path.clone().into_boxed_path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(entries)
+    }
 }
 
 #[cfg(test)]
@@ -263,4 +310,100 @@ mod tests {
             .expect("Failed to load binary data");
         assert_eq!(binary_data, loaded_data);
     }
+
+    #[tokio::test]
+    async fn test_list_files_root_non_recursive() {
+        let storage = InMemoryDataStorage::new();
+
+        // Create test structure
+        storage.store_data(b"1".to_vec(), Path::new("file1.txt")).await.unwrap();
+        storage.store_data(b"2".to_vec(), Path::new("file2.txt")).await.unwrap();
+        storage.store_data(b"3".to_vec(), Path::new("dir1/file3.txt")).await.unwrap();
+        storage.store_data(b"4".to_vec(), Path::new("dir1/subdir/file4.txt")).await.unwrap();
+
+        // List root non-recursively
+        let files = storage.list_files(Path::new(""), false).await.unwrap();
+
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&PathBuf::from("file1.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("file2.txt").into_boxed_path()));
+    }
+
+    #[tokio::test]
+    async fn test_list_files_root_recursive() {
+        let storage = InMemoryDataStorage::new();
+
+        // Create test structure
+        storage.store_data(b"1".to_vec(), Path::new("file1.txt")).await.unwrap();
+        storage.store_data(b"2".to_vec(), Path::new("file2.txt")).await.unwrap();
+        storage.store_data(b"3".to_vec(), Path::new("dir1/file3.txt")).await.unwrap();
+        storage.store_data(b"4".to_vec(), Path::new("dir1/subdir/file4.txt")).await.unwrap();
+
+        // List root recursively
+        let files = storage.list_files(Path::new(""), true).await.unwrap();
+
+        assert_eq!(files.len(), 4);
+        assert!(files.contains(&PathBuf::from("file1.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("file2.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("dir1/file3.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("dir1/subdir/file4.txt").into_boxed_path()));
+    }
+
+    #[tokio::test]
+    async fn test_list_files_subdirectory_non_recursive() {
+        let storage = InMemoryDataStorage::new();
+
+        // Create test structure
+        storage.store_data(b"1".to_vec(), Path::new("dir1/file1.txt")).await.unwrap();
+        storage.store_data(b"2".to_vec(), Path::new("dir1/file2.txt")).await.unwrap();
+        storage.store_data(b"3".to_vec(), Path::new("dir1/subdir/file3.txt")).await.unwrap();
+        storage.store_data(b"4".to_vec(), Path::new("dir2/file4.txt")).await.unwrap();
+
+        // List dir1 non-recursively
+        let files = storage.list_files(Path::new("dir1"), false).await.unwrap();
+
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&PathBuf::from("dir1/file1.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("dir1/file2.txt").into_boxed_path()));
+    }
+
+    #[tokio::test]
+    async fn test_list_files_subdirectory_recursive() {
+        let storage = InMemoryDataStorage::new();
+
+        // Create test structure
+        storage.store_data(b"1".to_vec(), Path::new("dir1/file1.txt")).await.unwrap();
+        storage.store_data(b"2".to_vec(), Path::new("dir1/file2.txt")).await.unwrap();
+        storage.store_data(b"3".to_vec(), Path::new("dir1/subdir/file3.txt")).await.unwrap();
+        storage.store_data(b"4".to_vec(), Path::new("dir2/file4.txt")).await.unwrap();
+
+        // List dir1 recursively
+        let files = storage.list_files(Path::new("dir1"), true).await.unwrap();
+
+        assert_eq!(files.len(), 3);
+        assert!(files.contains(&PathBuf::from("dir1/file1.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("dir1/file2.txt").into_boxed_path()));
+        assert!(files.contains(&PathBuf::from("dir1/subdir/file3.txt").into_boxed_path()));
+    }
+
+    #[tokio::test]
+    async fn test_list_files_empty_storage() {
+        let storage = InMemoryDataStorage::new();
+
+        let files = storage.list_files(Path::new(""), false).await.unwrap();
+        assert_eq!(files.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_files_nonexistent_directory() {
+        let storage = InMemoryDataStorage::new();
+
+        storage.store_data(b"1".to_vec(), Path::new("dir1/file1.txt")).await.unwrap();
+
+        // List a directory that doesn't exist
+        let files = storage.list_files(Path::new("dir2"), false).await.unwrap();
+        assert_eq!(files.len(), 0);
+    }
 }
+
+

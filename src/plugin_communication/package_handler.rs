@@ -58,7 +58,7 @@ impl PackageHandler {
     }
 
     pub async fn send_package(&self, package: &Vec<u8>) -> std::io::Result<()> {
-        let len: u32 = package.len() as u32;
+        let len = package.len() as u32;
         let mut data = Vec::with_capacity(4 + len as usize);
         data.extend_from_slice(&len.to_be_bytes());
         data.extend_from_slice(package);

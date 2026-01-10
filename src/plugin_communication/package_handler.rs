@@ -78,6 +78,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::io::duplex;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::sync::Mutex;
     use tokio::time::sleep;
 
@@ -108,23 +109,202 @@ mod tests {
                 .boxed()
             }),
         );
-        // Sende Test-Daten
         sender.send_package(&vec![1, 2, 3]).await.unwrap();
-
-        // Warte 100ms auf Empfang
         sleep(Duration::from_millis(100)).await;
 
-        // Prüfe Ergebnis
         assert!(receiver.lock().await.is_some());
         assert_eq!(*receiver.lock().await, Some(vec![1, 2, 3]));
 
         sender.send_package(&vec![0u8; 100000]).await.unwrap();
-
-        // Warte 100ms auf Empfang
         sleep(Duration::from_millis(100)).await;
 
-        // Prüfe Ergebnis
         assert!(receiver.lock().await.is_some());
         assert_eq!(*receiver.lock().await, Some(vec![0u8; 100000]));
+    }
+
+    #[tokio::test]
+    async fn test_send_receive_with_oneshot() {
+        let (client, server) = duplex(1024);
+        let (read1, write1) = tokio::io::split(server);
+        let (read2, write2) = tokio::io::split(client);
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<Vec<u8>>();
+        let tx = Arc::new(Mutex::new(Some(tx)));
+
+        let sender = PackageHandler::new(
+            Box::new(read1),
+            Box::new(write1),
+            Box::new(|_| async {}.boxed()),
+        );
+        let _ = PackageHandler::new(
+            Box::new(read2),
+            Box::new(write2),
+            Box::new(move |vec| {
+                let tx_clone = tx.clone();
+                async move {
+                    println!("received via oneshot: {:?}", vec);
+                    if let Some(sender) = tx_clone.lock().await.take() {
+                        let _ = sender.send(vec);
+                    }
+                }
+                .boxed()
+            }),
+        );
+
+        let test_data = vec![5, 10, 15, 20];
+        sender.send_package(&test_data).await.unwrap();
+
+        let received = tokio::time::timeout(Duration::from_secs(1), rx)
+            .await
+            .expect("Timeout: Did not received any data")
+            .expect("Channel closed without data");
+
+        assert_eq!(received, test_data);
+    }
+
+    #[tokio::test]
+    async fn test_decoding_small_data() {
+        let (mut raw_stream, handler_stream) = duplex(1024);
+        let (read, write) = tokio::io::split(handler_stream);
+
+        let received: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let received_clone = received.clone();
+
+        let _handler = PackageHandler::new(
+            Box::new(read),
+            Box::new(write),
+            Box::new(move |data| {
+                let received_clone = received_clone.clone();
+                async move {
+                    let _ = received_clone.lock().await.insert(data);
+                }
+                .boxed()
+            }),
+        );
+
+        // Manually encode and write to raw stream
+        let test_data = vec![1, 2, 3, 4, 5];
+        let len = test_data.len() as u32;
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(&len.to_be_bytes());
+        encoded.extend_from_slice(&test_data);
+
+        raw_stream.write_all(&encoded).await.unwrap();
+        raw_stream.flush().await.unwrap();
+
+        // Wait for PackageHandler to receive and decode
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify decoded data
+        let received_data = received.lock().await;
+        assert!(received_data.is_some(), "No data received");
+        assert_eq!(*received_data, Some(test_data));
+    }
+
+    #[tokio::test]
+    async fn test_encoding_small_data() {
+        let (mut raw_stream, handler_stream) = duplex(1024);
+        let (read, write) = tokio::io::split(handler_stream);
+
+        let handler = PackageHandler::new(
+            Box::new(read),
+            Box::new(write),
+            Box::new(|_| async {}.boxed()),
+        );
+
+        // Send data via PackageHandler
+        let test_data = vec![10, 20, 30, 40, 50];
+        handler.send_package(&test_data).await.unwrap();
+
+        // Manually read and decode from raw stream
+        let mut len_buf = [0u8; 4];
+        raw_stream.read_exact(&mut len_buf).await.unwrap();
+        let decoded_len = u32::from_be_bytes(len_buf) as usize;
+
+        assert_eq!(decoded_len, test_data.len(), "Length mismatch");
+
+        let mut data_buf = vec![0u8; decoded_len];
+        raw_stream.read_exact(&mut data_buf).await.unwrap();
+
+        assert_eq!(data_buf, test_data, "Data mismatch");
+    }
+
+    #[tokio::test]
+    async fn test_decoding_large_data() {
+        let (mut raw_stream, handler_stream) = duplex(200_000);
+        let (read, write) = tokio::io::split(handler_stream);
+
+        let received: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let received_clone = received.clone();
+
+        let _handler = PackageHandler::new(
+            Box::new(read),
+            Box::new(write),
+            Box::new(move |data| {
+                let received_clone = received_clone.clone();
+                async move {
+                    let _ = received_clone.lock().await.insert(data);
+                }
+                .boxed()
+            }),
+        );
+
+        // Manually encode large data
+        let test_data = vec![42u8; 100_000];
+        let len = test_data.len() as u32;
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(&len.to_be_bytes());
+        encoded.extend_from_slice(&test_data);
+
+        raw_stream.write_all(&encoded).await.unwrap();
+        raw_stream.flush().await.unwrap();
+
+        // Wait for decoding
+        sleep(Duration::from_millis(200)).await;
+
+        // Verify
+        let received_data = received.lock().await;
+        assert!(received_data.is_some(), "No large data received");
+        assert_eq!(received_data.as_ref().unwrap().len(), 100_000);
+        assert_eq!(*received_data, Some(test_data));
+    }
+
+    #[tokio::test]
+    async fn test_decoding_empty_data() {
+        let (mut raw_stream, handler_stream) = duplex(1024);
+        let (read, write) = tokio::io::split(handler_stream);
+
+        let received: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let received_clone = received.clone();
+
+        let _handler = PackageHandler::new(
+            Box::new(read),
+            Box::new(write),
+            Box::new(move |data| {
+                let received_clone = received_clone.clone();
+                async move {
+                    let _ = received_clone.lock().await.insert(data);
+                }
+                .boxed()
+            }),
+        );
+
+        // Manually encode empty data
+        let test_data: Vec<u8> = vec![];
+        let len = test_data.len() as u32;
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(&len.to_be_bytes());
+        encoded.extend_from_slice(&test_data);
+
+        raw_stream.write_all(&encoded).await.unwrap();
+        raw_stream.flush().await.unwrap();
+
+        // Wait for decoding
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify
+        let received_data = received.lock().await;
+        assert!(received_data.is_some(), "No empty data received");
+        assert_eq!(*received_data, Some(vec![]));
     }
 }

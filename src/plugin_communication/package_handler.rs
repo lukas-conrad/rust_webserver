@@ -4,7 +4,7 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
 
-pub type ArrayListener = Box<dyn Fn(Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type ArrayListener = Box<dyn Fn(Vec<u8>) -> BoxFuture<'static, ()> + Send>;
 pub struct PackageHandler {
     write: Mutex<Box<dyn AsyncWrite + Unpin + Send>>,
     listener: Mutex<ArrayListener>,
@@ -47,7 +47,6 @@ impl PackageHandler {
         let mut size_buf = [0u8; 4];
         let mut read_guard = read.lock().await;
         read_guard.read_exact(&mut size_buf).await?;
-        println!("Size Buffer: {:?}", size_buf);
 
         let len = u32::from_be_bytes(size_buf) as usize;
         let mut data_buf = Vec::with_capacity(len);
@@ -103,7 +102,6 @@ mod tests {
             Box::new(move |vec| {
                 let receiver_clone = receiver_clone.clone();
                 async move {
-                    println!("received: {:?}", vec);
                     let _ = receiver_clone.lock().await.insert(vec);
                 }
                 .boxed()

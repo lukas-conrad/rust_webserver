@@ -1,3 +1,5 @@
+use crate::plugin_communication::protocol::Protocol;
+use crate::plugin_communication::std_io_json_protocol::StdIoJsonProtocol;
 use crate::plugin_old::models::RequestInformation;
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -7,7 +9,7 @@ use strum::Display;
 pub struct PluginConfig {
     pub plugin_name: String,
     pub startup_command: String,
-    pub protocol: Protocol,
+    pub protocol: ProtocolEnum,
     pub max_request_timeout: u64,
     pub max_startup_time: u64,
     pub request_information: RequestInformation,
@@ -15,6 +17,13 @@ pub struct PluginConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Display)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum Protocol {
+pub enum ProtocolEnum {
     StdIoJson,
+}
+impl ProtocolEnum {
+    fn get_protocol(&self) -> Box<dyn Protocol> {
+        match self {
+            ProtocolEnum::StdIoJson => Box::new(StdIoJsonProtocol::new()),
+        }
+    }
 }

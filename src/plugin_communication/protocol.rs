@@ -11,7 +11,7 @@ pub enum ProtocolError {
 }
 
 #[async_trait]
-pub trait Protocol {
+pub trait Protocol: Send {
     async fn start_communication(
         &mut self,
         config: PluginEntry,

@@ -1,11 +1,17 @@
 use crate::plugin::plugin_entry::PluginEntry;
-use crate::plugin_communication::protocol::{Protocol, ProtocolError};
 use crate::plugin_communication::plugin_communicator::{Listener, PluginCommunicator};
+use crate::plugin_communication::protocol::{Protocol, ProtocolError};
 use async_trait::async_trait;
 use tokio::process::Child;
 
-struct StdIoJsonProtocol {
-    process: Child,
+pub struct StdIoJsonProtocol {
+    process: Option<Child>,
+}
+
+impl StdIoJsonProtocol {
+    pub(crate) fn new() -> Self {
+        Self { process: None }
+    }
 }
 
 #[async_trait]

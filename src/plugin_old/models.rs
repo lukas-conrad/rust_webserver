@@ -201,7 +201,7 @@ package! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plugin::plugin_config::{PluginConfig, Protocol};
+    use crate::plugin::plugin_config::{PluginConfig, ProtocolEnum};
     use serde_json;
     use std::collections::HashMap;
 
@@ -719,7 +719,7 @@ mod tests {
         let config = PluginConfig {
             plugin_name: "InternalBusinessHandler420".to_string(),
             startup_command: "java -jar businessHandler.jar".to_string(),
-            protocol: Protocol::StdIoJson,
+            protocol: ProtocolEnum::StdIoJson,
             max_request_timeout: 1000,
             max_startup_time: 1000,
             request_information: request_info,
@@ -753,7 +753,7 @@ mod tests {
 
         assert_eq!(config.plugin_name, "InternalBusinessHandler420");
         assert_eq!(config.startup_command, "java -jar businessHandler.jar");
-        assert_eq!(config.protocol, Protocol::StdIoJson);
+        assert_eq!(config.protocol, ProtocolEnum::StdIoJson);
         assert_eq!(config.max_request_timeout, 1000);
         assert_eq!(config.max_startup_time, 1000);
         assert_eq!(config.request_information.request_methods, vec!["*"]);

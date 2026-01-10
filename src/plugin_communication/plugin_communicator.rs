@@ -78,16 +78,13 @@ impl JsonCommunicator {
                 let vec = vec_guard.deref_mut();
                 let pos = vec.iter().position(|(filter, _)| filter(&package));
 
-                println!("Package received {:?}", package);
                 // check response listener
                 if let Some(pos) = pos {
-                    println!("Filter at pos {} requested package", pos);
                     let (_, sender) = vec.remove(pos);
                     let _ = sender.send(package);
                 }
                 // otherwise, use normal listener
                 else if let Some(listener) = package_listener.lock().await.deref() {
-                    println!("No filter requested package, sending to listener");
                     let _ = listener(package).await;
                 }
             }
@@ -110,7 +107,6 @@ impl PluginCommunicator for JsonCommunicator {
         filter: Option<Filter>,
     ) -> Result<Option<Package>, CommunicationError> {
         if let Some(filter) = filter {
-            println!("Sending with filter");
             let (sender, receiver) = tokio::sync::oneshot::channel::<Package>();
             self.response_listener.lock().await.push((filter, sender));
             self.package_handler

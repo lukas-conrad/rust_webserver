@@ -3,10 +3,11 @@ use crate::plugin_communication::plugin_communicator::CommunicationError::Sendin
 use crate::plugin_old::models::Package;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use futures::{AsyncRead, FutureExt};
+use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use tokio::io::AsyncWrite;
+use tokio::io::AsyncRead;
 use tokio::sync::Mutex;
 
 pub type Listener = Box<dyn Fn(Package) -> BoxFuture<'static, ()> + Send + Sync>;

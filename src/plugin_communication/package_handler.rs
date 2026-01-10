@@ -1,6 +1,6 @@
 use futures::future::BoxFuture;
-use futures::{AsyncRead, AsyncReadExt};
 use std::sync::Arc;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
 
@@ -47,17 +47,19 @@ impl PackageHandler {
         let mut size_buf = [0u8; 4];
         let mut read_guard = read.lock().await;
         read_guard.read_exact(&mut size_buf).await?;
+        println!("Size Buffer: {:?}", size_buf);
 
-        let len = u32::from_be_bytes(size_buf);
-        let mut data_buf: Vec<u8> = Vec::with_capacity(len as usize);
+        let len = u32::from_be_bytes(size_buf) as usize;
+        let mut data_buf = Vec::with_capacity(len);
+        data_buf.resize(len, 0);
         read_guard.read_exact(&mut data_buf).await?;
 
         Ok(data_buf)
     }
 
     pub async fn send_package(&self, package: &Vec<u8>) -> std::io::Result<()> {
-        let len = package.len();
-        let mut data = Vec::with_capacity(4 + len);
+        let len: u32 = package.len() as u32;
+        let mut data = Vec::with_capacity(4 + len as usize);
         data.extend_from_slice(&len.to_be_bytes());
         data.extend_from_slice(package);
 
@@ -66,5 +68,63 @@ impl PackageHandler {
         mutex_guard.flush().await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::plugin_communication::package_handler::PackageHandler;
+    use futures::FutureExt;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::io::duplex;
+    use tokio::sync::Mutex;
+    use tokio::time::sleep;
+
+    #[tokio::test]
+    async fn test_send_receive() {
+        let (client, server) = duplex(1024);
+        let (read1, write1) = tokio::io::split(server);
+        let (read2, write2) = tokio::io::split(client);
+
+        let receiver: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+
+        let receiver_clone = receiver.clone();
+
+        let sender = PackageHandler::new(
+            Box::new(read1),
+            Box::new(write1),
+            Box::new(|_| async {}.boxed()),
+        );
+        let _ = PackageHandler::new(
+            Box::new(read2),
+            Box::new(write2),
+            Box::new(move |vec| {
+                let receiver_clone = receiver_clone.clone();
+                async move {
+                    println!("received: {:?}", vec);
+                    let _ = receiver_clone.lock().await.insert(vec);
+                }
+                .boxed()
+            }),
+        );
+        // Sende Test-Daten
+        sender.send_package(&vec![1, 2, 3]).await.unwrap();
+
+        // Warte 100ms auf Empfang
+        sleep(Duration::from_millis(100)).await;
+
+        // Prüfe Ergebnis
+        assert!(receiver.lock().await.is_some());
+        assert_eq!(*receiver.lock().await, Some(vec![1, 2, 3]));
+
+        sender.send_package(&vec![0u8; 100000]).await.unwrap();
+
+        // Warte 100ms auf Empfang
+        sleep(Duration::from_millis(100)).await;
+
+        // Prüfe Ergebnis
+        assert!(receiver.lock().await.is_some());
+        assert_eq!(*receiver.lock().await, Some(vec![0u8; 100000]));
     }
 }

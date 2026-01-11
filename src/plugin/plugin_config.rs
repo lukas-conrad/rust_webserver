@@ -1,5 +1,5 @@
-use crate::plugin_communication::protocol::Protocol;
-use crate::plugin_communication::std_io_json_protocol::StdIoJsonProtocol;
+use crate::plugin_communication::protocols::protocol::Protocol;
+use crate::plugin_communication::protocols::std_io_json_protocol::StdIoJsonProtocol;
 use crate::plugin_old::models::RequestInformation;
 use serde::{Deserialize, Serialize};
 use strum::Display;

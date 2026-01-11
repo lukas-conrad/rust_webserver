@@ -1,7 +1,7 @@
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError;
 use crate::plugin_communication::plugin_communicator::PluginCommunicator;
-use crate::plugin_communication::protocol::Protocol;
+use crate::plugin_communication::protocols::protocol::Protocol;
 
 pub struct RunningPlugin {
     entry: PluginEntry,

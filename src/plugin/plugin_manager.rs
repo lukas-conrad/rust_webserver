@@ -31,7 +31,7 @@ impl PluginManager {
     }
     
     async fn start_plugins(plugin_entries: &Vec<PluginEntry>) {
-        
+        todo!("Please implement, otherwise will not work")
     }
 
     async fn scan_plugins(&mut self, plugins_path: &Path) -> Result<(), PluginError> {
@@ -47,7 +47,7 @@ impl PluginManager {
                     .await
                     .map(|json| serde_json::from_str::<PluginConfig>(&json));
 
-                // TODO: double Ok structure seams unclean
+                // TODO: double Ok structure seems unclean
                 if let Ok(Ok(config)) = config {
                     plugin_entries.push(PluginEntry::new(config, file));
                 } else {

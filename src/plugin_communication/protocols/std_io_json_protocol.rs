@@ -1,6 +1,6 @@
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin_communication::plugin_communicator::{Listener, PluginCommunicator};
-use crate::plugin_communication::protocol::{Protocol, ProtocolError};
+use crate::plugin_communication::protocols::protocol::{Protocol, ProtocolError};
 use async_trait::async_trait;
 use tokio::process::Child;
 

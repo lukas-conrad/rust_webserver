@@ -729,7 +729,7 @@ mod tests {
 
         assert!(json.contains(r#""pluginName":"InternalBusinessHandler420""#));
         assert!(json.contains(r#""startupCommand":"java -jar businessHandler.jar""#));
-        assert!(json.contains(r#""protocols":["json"]"#));
+        assert!(json.contains(r#""protocol":"STD_IO_JSON""#));
         assert!(json.contains(r#""maxRequestTimeout":1000"#));
         assert!(json.contains(r#""maxStartupTime":1000"#));
     }
@@ -739,7 +739,7 @@ mod tests {
         let json = r#"{
             "pluginName": "InternalBusinessHandler420",
             "startupCommand": "java -jar businessHandler.jar",
-            "protocols": ["json"],
+            "protocol": "STD_IO_JSON",
             "maxRequestTimeout": 1000,
             "maxStartupTime": 1000,
             "requestInformation": {

@@ -16,7 +16,7 @@ pub struct PluginConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Display)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ProtocolEnum {
     StdIoJson,
 }

@@ -24,7 +24,7 @@ impl PluginStarter for DefaultAppStarter {
         let dir = entry.path.parent().unwrap();
 
         #[cfg(target_os = "windows")]
-        let mut process = Command::new("cmd")
+        let process = Command::new("cmd")
             .arg("/C")
             .arg(&entry.config.startup_command)
             .current_dir(dir)
@@ -34,7 +34,7 @@ impl PluginStarter for DefaultAppStarter {
             .spawn()?;
 
         #[cfg(not(target_os = "windows"))]
-        let mut process = Command::new("sh")
+        let process = Command::new("sh")
             .arg("-c")
             .arg(&entry.config.startup_command)
             .current_dir(dir)

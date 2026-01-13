@@ -16,7 +16,7 @@ impl DefaultAppController {
 
 #[async_trait]
 impl AppController for DefaultAppController {
-    fn get_stdin(&mut self) -> Result<Box<dyn tokio::io::AsyncWrite>, Error> {
+    fn get_stdin(&mut self) -> Result<Box<dyn tokio::io::AsyncWrite + Unpin + Send + Sync>, Error> {
         let stdin = self
             .process
             .stdin
@@ -25,7 +25,7 @@ impl AppController for DefaultAppController {
         Ok(Box::new(stdin))
     }
 
-    fn get_stdout(&mut self) -> Result<Box<dyn tokio::io::AsyncRead>, Error> {
+    fn get_stdout(&mut self) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send + Sync>, Error> {
         let stdout = self
             .process
             .stdout
@@ -34,7 +34,7 @@ impl AppController for DefaultAppController {
         Ok(Box::new(stdout))
     }
 
-    fn get_stderr(&mut self) -> Result<Box<dyn tokio::io::AsyncRead>, Error> {
+    fn get_stderr(&mut self) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send + Sync>, Error> {
         let stderr = self
             .process
             .stderr

@@ -14,9 +14,9 @@ pub trait PluginStarter: Send + Sync {
 
 #[async_trait]
 pub trait AppController: Send + Sync {
-    fn get_stdin(&mut self) -> Result<Box<dyn AsyncWrite>, Error>;
-    fn get_stdout(&mut self) -> Result<Box<dyn AsyncRead>, Error>;
-    fn get_stderr(&mut self) -> Result<Box<dyn AsyncRead>, Error>;
+    fn get_stdin(&mut self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error>;
+    fn get_stdout(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
+    fn get_stderr(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
 
     fn is_running(&mut self) -> bool;
 

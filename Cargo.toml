@@ -26,6 +26,10 @@ base64 = "0.22"
 paste = "1.0.15"
 async-trait = "0.1.89"
 
+[[bin]]
+name = "test_dummy_app"
+path = "src/bin/test_dummy_app.rs"
+
 [dev-dependencies]
 tempfile = "3.13"
 

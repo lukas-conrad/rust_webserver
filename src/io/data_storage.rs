@@ -26,8 +26,11 @@ pub trait DataStorage: Send {
     ) -> Result<Vec<Box<Path>>, FileSystemError>;
 }
 
+pub trait FSBinding: Send + Sync {
+    fn translate_to_fs(&self, path: &Box<Path>) -> Result<Box<Path>, FileSystemError>;
+}
 pub struct FSDataStorage {
-    base_path: Box<Path>,
+    pub base_path: Box<Path>,
 }
 
 impl FSDataStorage {
@@ -135,6 +138,13 @@ impl DataStorage for FSDataStorage {
                 return path.to_path_buf().into_boxed_path();
             })
             .collect())
+    }
+}
+
+impl FSBinding for FSDataStorage {
+    fn translate_to_fs(&self, path: &Box<Path>) -> Result<Box<Path>, FileSystemError> {
+        let fs_path = self.base_path.join(path);
+        Ok(fs_path.into_boxed_path())
     }
 }
 

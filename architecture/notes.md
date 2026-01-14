@@ -4,7 +4,7 @@ Here, I want to run a complete tracer path through all my modules, mentally from
 
 App Start:
 - Scanning files for plugin_configs, load them and provide a list of plugin entries
-- Start all plugins from the entries -> List of running plugins
+- Start all plugins from the entries → List of running plugins
 - Start Webserver, set request listener
 
 Request arrives:

@@ -133,8 +133,8 @@ impl DataStorage for FSDataStorage {
             .iter()
             .map(|entry| {
                 let buf = entry.path();
-                let path = buf.strip_prefix(&self.base_path).unwrap();
                 // TODO: unwrap may panic
+                let path = buf.strip_prefix(&self.base_path).unwrap();
                 return path.to_path_buf().into_boxed_path();
             })
             .collect())

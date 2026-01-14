@@ -177,6 +177,7 @@ macro_rules! package {
                     }
                 }
 
+                #[allow(unused)]
                 pub fn filter() -> Filter {
                     Box::new(|package: &Package| {
                         match package {

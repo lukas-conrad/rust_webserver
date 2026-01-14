@@ -8,9 +8,8 @@ use crate::plugin_communication::plugin_communicator::{
 };
 use crate::plugin_communication::protocols::protocol::Protocol;
 use crate::plugin_old::models::{
-    HandshakeRequestContent, Package, PackageGen, PackageHandshakeResponse,
+    HandshakeRequestContent, Package, PackageHandshakeResponse,
 };
-use futures::FutureExt;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -72,7 +71,7 @@ impl RunningPlugin {
         }
     }
 
-    async fn send_package_with_response(
+    pub async fn send_package_with_response(
         &self,
         package: &Package,
         filter: Filter,
@@ -83,7 +82,7 @@ impl RunningPlugin {
         }?;
         Ok(result.unwrap())
     }
-    async fn send_package(&self, package: &Package) -> Result<(), CommunicationError> {
+    pub async fn send_package(&self, package: &Package) -> Result<(), CommunicationError> {
         let _ = self.communicator.send_package(&package, None).await?;
         Ok(())
     }

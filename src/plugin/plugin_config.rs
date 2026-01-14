@@ -21,7 +21,7 @@ pub enum ProtocolEnum {
     StdIoJson,
 }
 impl ProtocolEnum {
-    fn get_protocol(&self) -> Box<dyn Protocol> {
+    pub fn get_protocol(&self) -> Box<dyn Protocol> {
         match self {
             ProtocolEnum::StdIoJson => Box::new(StdIoJsonProtocol::new()),
         }

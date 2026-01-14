@@ -1,6 +1,6 @@
 use crate::plugin::plugin_entry::PluginEntry;
+use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_communication::plugin_communicator::PluginCommunicator;
-use crate::plugin_old::models::Package;
 use async_trait::async_trait;
 use strum::Display;
 
@@ -14,7 +14,8 @@ pub enum ProtocolError {
 pub trait Protocol: Send {
     async fn start_communication(
         &mut self,
-        config: PluginEntry,
+        config: &PluginEntry,
+        plugin_starter: &Box<dyn PluginStarter>
     ) -> Result<Box<dyn PluginCommunicator>, ProtocolError>;
 
     async fn stop(&mut self) -> Result<(), ProtocolError>;

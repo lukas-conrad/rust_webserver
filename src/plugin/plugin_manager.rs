@@ -2,37 +2,37 @@ use crate::io::data_storage::DataStorage;
 use crate::plugin::plugin_config::PluginConfig;
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError::PluginScanError;
+use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_old::Plugin;
-use futures::stream;
-use futures::StreamExt;
-use serde_json::Error;
 use std::path::Path;
+use strum::Display;
 use tokio::fs;
 use tokio::sync::Mutex;
 
+#[derive(Display, Debug)]
 pub enum PluginError {
     PluginScanError(String),
+    PluginStartError(String),
+    PluginInitError(String),
 }
 
 pub struct PluginManager {
     pub plugins: Mutex<Vec<Plugin>>,
-    plugin_entries: Vec<PluginEntry>,
+    pub plugin_entries: Vec<PluginEntry>,
     data_storage: Box<dyn DataStorage>,
-    error_log_path: Box<Path>,
+    plugin_starter: Box<dyn PluginStarter>,
 }
 impl PluginManager {
-    fn new(data_storage: Box<dyn DataStorage>, error_log_path: Box<Path>) -> Self {
+    fn new(data_storage: Box<dyn DataStorage>, plugin_starter: Box<dyn PluginStarter>) -> Self {
         Self {
             plugins: Mutex::new(vec![]),
             plugin_entries: vec![],
-            error_log_path,
             data_storage,
+            plugin_starter,
         }
     }
-    
-    async fn start_plugins(plugin_entries: &Vec<PluginEntry>) {
-        todo!("Please implement, otherwise will not work")
-    }
+
+    async fn start_plugin(plugin_entry: &PluginEntry) {}
 
     async fn scan_plugins(&mut self, plugins_path: &Path) -> Result<(), PluginError> {
         let files = self

@@ -1,3 +1,4 @@
+use crate::plugin_communication::plugin_communicator::Filter;
 use crate::control_system::models::CommandRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -174,6 +175,15 @@ macro_rules! package {
                         package_type: PackageType::$variant,
                         content
                     }
+                }
+
+                pub fn filter() -> Filter {
+                    Box::new(|package: &Package| {
+                        match package {
+                            Package::$variant(_) => true,
+                            _ => false
+                        }
+                    })
                 }
 
                 #[allow(unused)]

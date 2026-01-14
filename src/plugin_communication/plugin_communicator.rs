@@ -6,6 +6,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use strum::Display;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio::sync::Mutex;
@@ -13,7 +14,7 @@ use tokio::sync::Mutex;
 pub type Listener = Box<dyn Fn(Package) -> BoxFuture<'static, ()> + Send + Sync>;
 pub type Filter = Box<dyn Fn(&Package) -> bool + Send + Sync>;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum CommunicationError {
     TimeoutError(String),
     SendingFailed(String),
@@ -113,16 +114,17 @@ impl PluginCommunicator for JsonCommunicator {
                 .send_package(&serde_json::to_vec(&package).unwrap())
                 .await
                 .map_err(|e| SendingFailed(e.to_string()))?;
-            return receiver
+            receiver
                 .await
                 .map(|package| Some(package))
-                .map_err(|e| SendingFailed(e.to_string()));
+                .map_err(|e| SendingFailed(e.to_string()))
+        } else {
+            self.package_handler
+                .send_package(&serde_json::to_vec(&package).unwrap())
+                .await
+                .map_err(|e| SendingFailed(e.to_string()))?;
+            Ok(None)
         }
-        self.package_handler
-            .send_package(&serde_json::to_vec(&package).unwrap())
-            .await
-            .map_err(|e| SendingFailed(e.to_string()))?;
-        Ok(None)
     }
 }
 

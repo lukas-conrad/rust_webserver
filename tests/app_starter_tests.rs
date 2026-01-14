@@ -2,12 +2,11 @@ use rust_webserver::io::data_storage::FSBinding;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin::plugin_entry::PluginEntry;
 use rust_webserver::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
-use rust_webserver::plugin_communication::app_starter::plugin_starter::{PluginStarter};
+use rust_webserver::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use rust_webserver::plugin_old::models::RequestInformation;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// Helper function to create a passthrough FSBinding for tests
 fn create_passthrough_fs_binding() -> Arc<dyn FSBinding> {

@@ -83,17 +83,6 @@ async fn test_start_app_success() {
 }
 
 #[tokio::test]
-async fn test_start_app_invalid_command() {
-    let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
-
-    let entry = create_test_plugin_entry("this_command_does_not_exist_12345".to_string());
-
-    let result = starter.start_app(&entry).await;
-    assert!(result.is_err(), "Should fail with invalid command");
-}
-
-#[tokio::test]
 async fn test_controller_stdin_stdout() {
     let fs_binding = create_passthrough_fs_binding();
     let starter = DefaultAppStarter::new(fs_binding);

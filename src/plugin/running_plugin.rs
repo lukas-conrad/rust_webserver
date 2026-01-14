@@ -1,16 +1,25 @@
 use crate::plugin::plugin_config::ProtocolEnum;
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError;
+use crate::plugin::plugin_manager::PluginError::PluginInitError;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
-use crate::plugin_communication::plugin_communicator::{CommunicationError, Filter, Listener, PluginCommunicator};
+use crate::plugin_communication::plugin_communicator::{
+    CommunicationError, Filter, Listener, PluginCommunicator,
+};
 use crate::plugin_communication::protocols::protocol::Protocol;
-use crate::plugin_old::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
+use crate::plugin_old::models::{
+    HandshakeRequestContent, Package, PackageGen, PackageHandshakeResponse,
+};
 use futures::FutureExt;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub struct RunningPlugin {
     communicator: Box<dyn PluginCommunicator>,
     protocol: Box<dyn Protocol>,
     pub protocol_enum: ProtocolEnum,
+    pub request_timeout: u64,
+    pub max_startup_time: u64,
 }
 
 impl RunningPlugin {
@@ -29,6 +38,8 @@ impl RunningPlugin {
         let plugin = Self {
             communicator,
             protocol,
+            request_timeout: entry.config.max_request_timeout,
+            max_startup_time: entry.config.max_startup_time,
             protocol_enum: protocol_enum.clone(),
         };
         plugin.init_plugin().await?;
@@ -46,14 +57,36 @@ impl RunningPlugin {
             .map_err(|e| PluginError::PluginInitError(e.to_string()))?
             .unwrap();
 
-        if let Package::HandshakeResponse(content) = response {}
-
-        Ok(())
+        if let Package::HandshakeResponse(content) = response {
+            if content.response_code == 0 {
+                Ok(())
+            } else {
+                Err(PluginInitError(format!(
+                    "Plugin handshake error: {code}, {text}",
+                    code = content.response_code,
+                    text = content.response_code_text
+                )))
+            }
+        } else {
+            panic!("Wrong package returned")
+        }
     }
 
-    // pub async fn send_package<T: Package>(package: &Package, filter: Option<Filter>) -> Result<T, CommunicationError> {
-    //
-    // }
+    async fn send_package_with_response(
+        &self,
+        package: &Package,
+        filter: Filter,
+    ) -> Result<Package, CommunicationError> {
+        let result = tokio::select! {
+            result = self.communicator.send_package(&package, Some(filter)) => result,
+            _ = sleep(Duration::from_millis(self.request_timeout)) => Err(CommunicationError::TimeoutError(format!("Timeout after {ms} milliseconds", ms = self.request_timeout)))
+        }?;
+        Ok(result.unwrap())
+    }
+    async fn send_package(&self, package: &Package) -> Result<(), CommunicationError> {
+        let _ = self.communicator.send_package(&package, None).await?;
+        Ok(())
+    }
 
     pub async fn set_listener(&mut self, listener: Listener) {
         self.communicator.set_listener(listener).await;

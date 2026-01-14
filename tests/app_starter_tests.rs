@@ -1,8 +1,8 @@
 use rust_webserver::io::data_storage::FSBinding;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin::plugin_entry::PluginEntry;
-use rust_webserver::plugin_communication::app_starter::default_app_starter::DefaultAppStarter;
-use rust_webserver::plugin_communication::app_starter::plugin_starter::{AppController, PluginStarter};
+use rust_webserver::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
+use rust_webserver::plugin_communication::app_starter::plugin_starter::{PluginStarter};
 use rust_webserver::plugin_old::models::RequestInformation;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -66,7 +66,7 @@ fn get_dummy_app_path() -> PathBuf {
 #[tokio::test]
 async fn test_start_app_success() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --sleep 100", dummy_path.display());
@@ -85,7 +85,7 @@ async fn test_start_app_success() {
 #[tokio::test]
 async fn test_controller_stdin_stdout() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --echo", dummy_path.display());
@@ -117,7 +117,7 @@ async fn test_controller_stdin_stdout() {
 #[tokio::test]
 async fn test_controller_stderr() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let error_message = "Test-error-message";
@@ -143,7 +143,7 @@ async fn test_controller_stderr() {
 #[tokio::test]
 async fn test_controller_exit_code() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let exit_code = 42;
@@ -161,7 +161,7 @@ async fn test_controller_exit_code() {
 #[tokio::test]
 async fn test_controller_is_running() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --sleep 2000", dummy_path.display());
@@ -185,7 +185,7 @@ async fn test_controller_is_running() {
 #[tokio::test]
 async fn test_controller_shutdown() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --infinite-loop", dummy_path.display());
@@ -209,7 +209,7 @@ async fn test_controller_shutdown() {
 #[tokio::test]
 async fn test_controller_wait() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --sleep 100 --exit-code 5", dummy_path.display());
@@ -230,7 +230,7 @@ async fn test_controller_wait() {
 #[tokio::test]
 async fn test_controller_get_stdin_twice_fails() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --echo", dummy_path.display());
@@ -254,7 +254,7 @@ async fn test_controller_get_stdin_twice_fails() {
 #[tokio::test]
 async fn test_controller_get_stdout_twice_fails() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --echo", dummy_path.display());
@@ -278,7 +278,7 @@ async fn test_controller_get_stdout_twice_fails() {
 #[tokio::test]
 async fn test_controller_get_stderr_twice_fails() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!("{} --stderr-message \"test\"", dummy_path.display());
@@ -302,7 +302,7 @@ async fn test_controller_get_stderr_twice_fails() {
 #[tokio::test]
 async fn test_multiple_commands_combined() {
     let fs_binding = create_passthrough_fs_binding();
-    let starter = DefaultAppStarter::new(fs_binding);
+    let starter = DefaultPluginStarter::new(fs_binding);
 
     let dummy_path = get_dummy_app_path();
     let command = format!(

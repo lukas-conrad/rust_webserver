@@ -1,21 +1,21 @@
-use crate::plugin_communication::app_starter::plugin_starter::AppController;
+use crate::plugin_communication::app_starter::plugin_starter::ProgramController;
 use async_trait::async_trait;
 use std::io::{Error, ErrorKind};
 use std::process::ExitStatus;
 use tokio::process::Child;
 
-pub struct DefaultAppController {
+pub struct DefaultProgramController {
     process: Child,
 }
 
-impl DefaultAppController {
+impl DefaultProgramController {
     pub fn new(process: Child) -> Self {
         Self { process }
     }
 }
 
 #[async_trait]
-impl AppController for DefaultAppController {
+impl ProgramController for DefaultProgramController {
     fn get_stdin(&mut self) -> Result<Box<dyn tokio::io::AsyncWrite + Unpin + Send + Sync>, Error> {
         let stdin = self
             .process

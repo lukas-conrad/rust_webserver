@@ -9,11 +9,11 @@ pub trait PluginStarter: Send + Sync {
     async fn start_app(
         &self,
         entry: &PluginEntry,
-    ) -> Result<Box<dyn AppController>, Error>;
+    ) -> Result<Box<dyn ProgramController>, Error>;
 }
 
 #[async_trait]
-pub trait AppController: Send + Sync {
+pub trait ProgramController: Send + Sync {
     fn get_stdin(&mut self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error>;
     fn get_stdout(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
     fn get_stderr(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;

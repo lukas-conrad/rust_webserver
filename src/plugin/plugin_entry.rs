@@ -12,25 +12,19 @@ pub struct PluginEntry {
 
 impl PluginEntry {
     pub fn new(config: PluginConfig, path: Box<Path>) -> Self {
-        let host_regex = config
-            .request_information
-            .hosts
-            .iter()
-            .map(|pattern| {
-                let mut regex = String::from("^");
-                for ch in pattern.chars() {
-                    match ch {
-                        '*' => regex.push_str(".*"),
-                        '.' => regex.push_str(r"\."),
-                        _ => regex.push(ch),
-                    }
-                }
-                regex.push('$');
+        let host_regex = Self::create_host_regex(&config);
+        let paths_regex = Self::create_paths_regex(&config);
 
-                Regex::new(&regex).unwrap()
-            })
-            .collect();
-        let paths_regex = config
+        Self {
+            config,
+            path,
+            host_regex,
+            paths_regex,
+        }
+    }
+
+    fn create_paths_regex(config: &PluginConfig) -> Vec<Regex> {
+        config
             .request_information
             .hosts
             .iter()
@@ -61,10 +55,37 @@ impl PluginEntry {
 
                 Regex::new(&regex).unwrap()
             })
-            .collect();
-
-        Self { config, path, host_regex, paths_regex }
+            .collect()
     }
 
-    // pub fn match_count() -> u32 {}
+    fn create_host_regex(config: &PluginConfig) -> Vec<Regex> {
+        let host_regex = config
+            .request_information
+            .hosts
+            .iter()
+            .map(|pattern| {
+                let mut regex = String::from("^");
+                for ch in pattern.chars() {
+                    match ch {
+                        '*' => regex.push_str(".*"),
+                        '.' => regex.push_str(r"\."),
+                        _ => regex.push(ch),
+                    }
+                }
+                regex.push('$');
+
+                Regex::new(&regex).unwrap()
+            })
+            .collect();
+        host_regex
+    }
+
+    pub fn match_count(&self, host: &String, path: &String, method: &String) -> u32 {
+        let methods = &self.config.request_information.request_methods;
+        if !(methods.contains(&"*".to_string()) || methods.contains(method)) {
+
+        }
+        todo!();
+        0
+    }
 }

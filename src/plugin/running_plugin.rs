@@ -16,9 +16,10 @@ use tokio::time::sleep;
 pub struct RunningPlugin {
     communicator: Box<dyn PluginCommunicator>,
     protocol: Box<dyn Protocol>,
-    pub protocol_enum: ProtocolEnum,
-    pub request_timeout: u64,
-    pub max_startup_time: u64,
+    protocol_enum: ProtocolEnum,
+    request_timeout: u64,
+    max_startup_time: u64,
+    pub entry: PluginEntry
 }
 
 impl RunningPlugin {
@@ -40,6 +41,7 @@ impl RunningPlugin {
             request_timeout: entry.config.max_request_timeout,
             max_startup_time: entry.config.max_startup_time,
             protocol_enum: protocol_enum.clone(),
+            entry: entry.clone()
         };
         plugin.init_plugin().await?;
         Ok(plugin)

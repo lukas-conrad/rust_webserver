@@ -5,7 +5,7 @@ use crate::plugin::plugin_manager::PluginError::PluginScanError;
 use crate::plugin::running_plugin::RunningPlugin;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_old::models::HttpRequest;
-use crate::plugin_old::models::Package::NormalRequest;
+use crate::plugin_old::models::Package::{NormalRequest, NormalResponse};
 use crate::plugin_old::models::{HttpResponse, NormalRequestContent};
 use std::path::Path;
 use strum::Display;
@@ -17,6 +17,7 @@ pub enum PluginError {
     PluginScanError(String),
     PluginStartError(String),
     PluginInitError(String),
+    PluginCommunicationError(String),
     PluginNotFoundError(String),
 }
 
@@ -39,21 +40,75 @@ impl PluginManager {
     pub async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError> {
         let running_plugins = self.plugins.lock().await;
         let plugin = Self::find_plugin_for_request(&*running_plugins, &request).await?;
-        let _ = plugin
-            .send_package(&NormalRequest(NormalRequestContent {
-                package_id: -1,
-                http_request: request,
-            }))
-            .await;
+        let package_id = rand::random();
+        let NormalResponse(response) = plugin
+            .send_package_with_response(
+                &NormalRequest(NormalRequestContent {
+                    package_id,
+                    http_request: request,
+                }),
+                Box::new(move |package| {
+                    if let NormalRequest(content) = package {
+                        return content.package_id == package_id;
+                    }
+                    return false;
+                }),
+            )
+            .await
+            .map_err(|e| PluginError::PluginCommunicationError(e.to_string()))?
+        else {
+            panic!("Wrong package returned")
+        };
 
-        todo!()
+        Ok(response.http_response)
     }
 
     pub async fn find_plugin_for_request<'a>(
         plugins: &'a [RunningPlugin],
         request: &HttpRequest,
     ) -> Result<&'a RunningPlugin, PluginError> {
+        let matches: Vec<_> = plugins
+            .iter()
+            .filter(|plugin| {
+                let plugin_methods = &plugin.entry.config.request_information.request_methods;
+
+                plugin_methods.contains(&"*".to_string())
+                    || plugin_methods.contains(&request.request_method)
+            })
+            .filter(|plugin| {
+                let plugin_hosts = &plugin.entry.config.request_information.hosts;
+
+                false
+            })
+            .map(|x| {})
+            .collect();
+        for plugin in plugins {
+            let plugin_methods = &plugin.entry.config.request_information.request_methods;
+            let plugin_paths = &plugin.entry.config.request_information.paths;
+            let plugin_hosts = &plugin.entry.config.request_information.hosts;
+        }
+
         todo!()
+    }
+
+    fn matches(actual: String, pattern: String) -> bool {
+        let mut pattern_pointer: usize = 0;
+        for i in 0..actual.len() {
+            let actual_letter = &actual[i..i + 1];
+            let pattern_letter = &pattern[pattern_pointer..pattern_pointer + 1];
+            let next_pattern_letter = &pattern[pattern_pointer + 1..pattern_pointer + 2];
+            if pattern_letter == "*" {
+                if actual_letter != pattern_letter {
+
+                }
+            } else if actual_letter == pattern_letter {
+                pattern_pointer += 1;
+            } else {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub async fn start_plugin(&self, plugin_entry: &PluginEntry) -> Result<(), PluginError> {

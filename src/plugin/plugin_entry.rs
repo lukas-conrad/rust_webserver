@@ -190,4 +190,53 @@ mod tests {
         assert!(vec[0].is_match("www.xd.mom.de"));
         assert!(!vec[0].is_match("www.your-mom.de"));
     }
+
+    #[test]
+    fn test_path_specificity_exact_path() {
+        // Exact paths should have high specificity
+        let specificity = PluginEntry::calculate_path_regex_specificity("api/users/profile.json");
+        assert_eq!(specificity, 27);
+    }
+
+    #[test]
+    fn test_path_specificity_with_single_wildcard() {
+        // Single wildcard reduces specificity
+        let specificity = PluginEntry::calculate_path_regex_specificity("api/*/profile.json");
+        assert_eq!(specificity, 17);
+
+        // Should be less specific than exact path
+        let exact_specificity = PluginEntry::calculate_path_regex_specificity("api/users/profile.json");
+        assert!(specificity < exact_specificity);
+    }
+
+    #[test]
+    fn test_path_specificity_with_double_wildcard() {
+        // Double wildcard reduces specificity even more
+        let specificity = PluginEntry::calculate_path_regex_specificity("api/**/profile.json");
+        assert_eq!(specificity, 12);
+
+        // Should be less specific than single wildcard
+        let single_wildcard = PluginEntry::calculate_path_regex_specificity("api/*/profile.json");
+        assert!(specificity < single_wildcard);
+    }
+
+    #[test]
+    fn test_path_specificity_comparison() {
+        // Compare different pattern types
+        let pattern1 = "static/css/main.css";      // Very specific
+        let pattern2 = "static/*/main.css";        // Medium specific
+        let pattern3 = "static/**/*.css";          // Less specific
+        let pattern4 = "**";                       // Minimal specific
+
+        let spec1 = PluginEntry::calculate_path_regex_specificity(pattern1);
+        let spec2 = PluginEntry::calculate_path_regex_specificity(pattern2);
+        let spec3 = PluginEntry::calculate_path_regex_specificity(pattern3);
+        let spec4 = PluginEntry::calculate_path_regex_specificity(pattern4);
+
+        // Specificity should be in descending order
+        assert!(spec1 > spec2, "Exact path should be more specific than single wildcard");
+        assert!(spec2 > spec3, "Single wildcard should be more specific than double wildcard");
+        assert!(spec3 > spec4, "Partially specific should be better than only wildcards");
+        assert!(spec4 < 0, "Only wildcards should have negative specificity");
+    }
 }

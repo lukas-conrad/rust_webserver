@@ -9,13 +9,13 @@ use std::io::{Error, ErrorKind};
 use std::process::ExitStatus;
 use tokio::io::{duplex, AsyncRead, AsyncWrite};
 
-struct TestPluginProgramController {
+pub struct TestPluginProgramController {
     stdin: Option<Box<dyn AsyncWrite + Unpin + Send + Sync>>,
     stdout: Option<Box<dyn AsyncRead + Unpin + Send + Sync>>,
 }
 
 impl TestPluginProgramController {
-    async fn new() -> Self {
+    pub async fn new() -> Self {
         let (client, server) = duplex(1024);
         let (plugin_read, plugin_write) = tokio::io::split(client);
         let (server_read, server_write) = tokio::io::split(server);
@@ -59,18 +59,18 @@ impl ProgramController for TestPluginProgramController {
 pub type TestPluginStartFunction =
     Box<dyn Fn() -> BoxFuture<'static, Box<dyn ProgramController>> + Send + Sync>;
 
-struct TestPluginStarter {
+pub struct TestPluginStarter {
     plugins: HashMap<String, TestPluginStartFunction>,
 }
 
 impl TestPluginStarter {
-    async fn new() -> Self {
+    pub async fn new() -> Self {
         Self {
             plugins: HashMap::new(),
         }
     }
 
-    fn add_plugin(
+    pub fn add_plugin(
         &mut self,
         startup_command: String,
         plugin_start_function: TestPluginStartFunction,

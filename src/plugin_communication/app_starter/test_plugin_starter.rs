@@ -9,12 +9,12 @@ use std::io::{Error, ErrorKind};
 use std::process::ExitStatus;
 use tokio::io::{duplex, AsyncRead, AsyncWrite};
 
-struct TestProgramController {
+struct TestPluginProgramController {
     stdin: Option<Box<dyn AsyncWrite + Unpin + Send + Sync>>,
     stdout: Option<Box<dyn AsyncRead + Unpin + Send + Sync>>,
 }
 
-impl TestProgramController {
+impl TestPluginProgramController {
     async fn new() -> Self {
         let (client, server) = duplex(1024);
         let (plugin_read, plugin_write) = tokio::io::split(client);
@@ -30,7 +30,7 @@ impl TestProgramController {
 }
 
 #[async_trait]
-impl ProgramController for TestProgramController {
+impl ProgramController for TestPluginProgramController {
     fn get_stdin(&mut self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error> {
         Ok(self.stdin.take().unwrap())
     }

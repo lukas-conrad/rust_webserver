@@ -40,6 +40,7 @@ impl Protocol for StdIoJsonProtocol {
     }
 
     async fn stop(&mut self) -> Result<(), ProtocolError> {
+        // TODO: do not just end the app, send stop package
         if let Some(ref mut controller) = self.process {
             controller
                 .shutdown()

@@ -6,10 +6,9 @@ use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_communication::plugin_communicator::{
     CommunicationError, Filter, Listener, PluginCommunicator,
 };
-use crate::plugin_communication::protocols::protocol::Protocol;
-use crate::plugin_old::models::{
-    HandshakeRequestContent, Package, PackageHandshakeResponse,
-};
+use crate::plugin_communication::protocols::protocol::{Protocol, ProtocolError};
+use crate::plugin_old::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
+use std::io::Error;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -19,7 +18,7 @@ pub struct RunningPlugin {
     protocol_enum: ProtocolEnum,
     request_timeout: u64,
     max_startup_time: u64,
-    pub entry: PluginEntry
+    pub entry: PluginEntry,
 }
 
 impl RunningPlugin {
@@ -41,7 +40,7 @@ impl RunningPlugin {
             request_timeout: entry.config.max_request_timeout,
             max_startup_time: entry.config.max_startup_time,
             protocol_enum: protocol_enum.clone(),
-            entry: entry.clone()
+            entry: entry.clone(),
         };
         plugin.init_plugin().await?;
         Ok(plugin)
@@ -87,6 +86,10 @@ impl RunningPlugin {
     pub async fn send_package(&self, package: &Package) -> Result<(), CommunicationError> {
         let _ = self.communicator.send_package(&package, None).await?;
         Ok(())
+    }
+
+    pub async fn stop_plugin(&mut self) -> Result<(), ProtocolError> {
+        self.protocol.stop().await
     }
 
     pub async fn set_listener(&mut self, listener: Listener) {

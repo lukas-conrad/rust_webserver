@@ -239,4 +239,101 @@ mod tests {
         assert!(spec3 > spec4, "Partially specific should be better than only wildcards");
         assert!(spec4 < 0, "Only wildcards should have negative specificity");
     }
+
+    #[test]
+    fn test_match_count_exact_match() {
+        use crate::plugin::plugin_config::{PluginConfig, ProtocolEnum};
+        use crate::plugin_old::models::RequestInformation;
+        use std::path::PathBuf;
+
+        // Create a plugin config with exact matches
+        let config = PluginConfig {
+            plugin_name: "test_plugin".to_string(),
+            startup_command: "test".to_string(),
+            protocol: ProtocolEnum::StdIoJson,
+            max_request_timeout: 5000,
+            max_startup_time: 3000,
+            request_information: RequestInformation {
+                request_methods: vec!["GET".to_string(), "POST".to_string()],
+                hosts: vec!["example.com".to_string()],
+                paths: vec!["api/users".to_string()],
+            },
+        };
+
+        let path = PathBuf::from("test/plugin").into_boxed_path();
+        let entry = PluginEntry::new(config, path);
+
+        // Test matching request
+        let host = "example.com".to_string();
+        let path = "api/users".to_string();
+        let method = "GET".to_string();
+        let count = entry.match_count(&host, &path, &method);
+        assert!(count > 0, "Should match exact host, path and method");
+
+        // Test non-matching method
+        let wrong_method = "DELETE".to_string();
+        let count = entry.match_count(&host, &path, &wrong_method);
+        assert_eq!(count, 0, "Should not match wrong method");
+
+        // Test non-matching host
+        let wrong_host = "wrong.com".to_string();
+        let count = entry.match_count(&wrong_host, &path, &method);
+        assert_eq!(count, 0, "Should not match wrong host");
+
+        // Test non-matching path
+        let wrong_path = "api/products".to_string();
+        let count = entry.match_count(&host, &wrong_path, &method);
+        assert_eq!(count, 0, "Should not match wrong path");
+    }
+
+    #[test]
+    fn test_match_count_with_wildcards() {
+        use crate::plugin::plugin_config::{PluginConfig, ProtocolEnum};
+        use crate::plugin_old::models::RequestInformation;
+        use std::path::PathBuf;
+
+        // Create a plugin config with wildcards
+        let config = PluginConfig {
+            plugin_name: "wildcard_plugin".to_string(),
+            startup_command: "test".to_string(),
+            protocol: ProtocolEnum::StdIoJson,
+            max_request_timeout: 5000,
+            max_startup_time: 3000,
+            request_information: RequestInformation {
+                request_methods: vec!["*".to_string()],
+                hosts: vec!["*.example.com".to_string()],
+                paths: vec!["api/**/data.json".to_string(), "static/*.css".to_string()],
+            },
+        };
+
+        let path = PathBuf::from("test/plugin").into_boxed_path();
+        let entry = PluginEntry::new(config, path);
+
+        // Test wildcard host matching
+        let host1 = "www.example.com".to_string();
+        let host2 = "api.example.com".to_string();
+        let path = "api/users/data.json".to_string();
+        let method = "GET".to_string();
+
+        let count1 = entry.match_count(&host1, &path, &method);
+        assert!(count1 > 0, "Should match wildcard host");
+
+        let count2 = entry.match_count(&host2, &path, &method);
+        assert!(count2 > 0, "Should match different subdomain");
+
+        // Test double wildcard path matching
+        let deep_path = "api/v1/users/profile/data.json".to_string();
+        let count = entry.match_count(&host1, &deep_path, &method);
+        assert!(count > 0, "Should match deep path with double wildcard");
+
+        // Test single wildcard path matching
+        let css_path = "static/main.css".to_string();
+        let count = entry.match_count(&host1, &css_path, &method);
+        assert!(count > 0, "Should match path with single wildcard");
+
+        // Test method wildcard - any method should work
+        let delete_method = "DELETE".to_string();
+        let count = entry.match_count(&host1, &path, &delete_method);
+        assert!(count > 0, "Should match any method with wildcard");
+    }
 }

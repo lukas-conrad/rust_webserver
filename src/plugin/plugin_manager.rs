@@ -1,7 +1,7 @@
 use crate::io::data_storage::DataStorage;
 use crate::plugin::plugin_config::PluginConfig;
 use crate::plugin::plugin_entry::PluginEntry;
-use crate::plugin::plugin_manager::PluginError::PluginScanError;
+use crate::plugin::plugin_manager::PluginError::{PluginNotFoundError, PluginScanError};
 use crate::plugin::running_plugin::RunningPlugin;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_old::models::HttpRequest;
@@ -39,14 +39,24 @@ impl PluginManager {
 
     pub async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError> {
         let running_plugins = self.plugins.lock().await;
-        let plugin = Self::find_plugin_for_request(&*running_plugins, &request).await?;
+        let plugin = Self::find_plugin_for_request(&*running_plugins, &request);
+
+        if plugin.is_none() {
+            return Err(PluginNotFoundError(
+                "Could not find any plugin to match this request".to_string(),
+            ));
+        }
+
+        let plugin = plugin.unwrap();
         let package_id = rand::random();
+
+        let request = NormalRequest(NormalRequestContent {
+            package_id,
+            http_request: request,
+        });
         let NormalResponse(response) = plugin
             .send_package_with_response(
-                &NormalRequest(NormalRequestContent {
-                    package_id,
-                    http_request: request,
-                }),
+                &request,
                 Box::new(move |package| {
                     if let NormalRequest(content) = package {
                         return content.package_id == package_id;
@@ -63,32 +73,27 @@ impl PluginManager {
         Ok(response.http_response)
     }
 
-    pub async fn find_plugin_for_request<'a>(
+    pub fn find_plugin_for_request<'a>(
         plugins: &'a [RunningPlugin],
         request: &HttpRequest,
-    ) -> Result<&'a RunningPlugin, PluginError> {
-        let matches: Vec<_> = plugins
+    ) -> Option<&'a RunningPlugin> {
+        let plugin = plugins
             .iter()
-            .filter(|plugin| {
-                let plugin_methods = &plugin.entry.config.request_information.request_methods;
-
-                plugin_methods.contains(&"*".to_string())
-                    || plugin_methods.contains(&request.request_method)
+            .map(|plugin| {
+                (
+                    plugin,
+                    plugin
+                        .entry
+                        .match_count(&request.host, &request.path, &request.request_method),
+                )
             })
-            .filter(|plugin| {
-                let plugin_hosts = &plugin.entry.config.request_information.hosts;
+            .max_by(|(_, specificity_1), (_, specificity_2)| specificity_1.cmp(&specificity_2));
 
-                false
-            })
-            .map(|x| {})
-            .collect();
-        for plugin in plugins {
-            let plugin_methods = &plugin.entry.config.request_information.request_methods;
-            let plugin_paths = &plugin.entry.config.request_information.paths;
-            let plugin_hosts = &plugin.entry.config.request_information.hosts;
+        if let Some((plugin, _)) = plugin {
+            Some(plugin)
+        } else {
+            None
         }
-
-        todo!()
     }
 
     fn matches(actual: String, pattern: String) -> bool {
@@ -98,9 +103,7 @@ impl PluginManager {
             let pattern_letter = &pattern[pattern_pointer..pattern_pointer + 1];
             let next_pattern_letter = &pattern[pattern_pointer + 1..pattern_pointer + 2];
             if pattern_letter == "*" {
-                if actual_letter != pattern_letter {
-
-                }
+                if actual_letter != pattern_letter {}
             } else if actual_letter == pattern_letter {
                 pattern_pointer += 1;
             } else {

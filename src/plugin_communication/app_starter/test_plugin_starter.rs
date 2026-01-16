@@ -1,7 +1,11 @@
+use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::test_plugin::TestPlugin;
-use crate::plugin_communication::app_starter::plugin_starter::ProgramController;
+use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
+use crate::plugin_old::interfaces::PluginError;
 use async_trait::async_trait;
-use std::io::Error;
+use futures::future::BoxFuture;
+use std::collections::HashMap;
+use std::io::{Error, ErrorKind};
 use std::process::ExitStatus;
 use tokio::io::{duplex, AsyncRead, AsyncWrite};
 
@@ -49,5 +53,43 @@ impl ProgramController for TestProgramController {
 
     async fn wait(&mut self) -> Result<ExitStatus, Error> {
         panic!("Not implemented")
+    }
+}
+
+pub type TestPluginStartFunction =
+    Box<dyn Fn() -> BoxFuture<'static, Box<dyn ProgramController>> + Send + Sync>;
+
+struct TestPluginStarter {
+    plugins: HashMap<String, TestPluginStartFunction>,
+}
+
+impl TestPluginStarter {
+    async fn new() -> Self {
+        Self {
+            plugins: HashMap::new(),
+        }
+    }
+
+    fn add_plugin(
+        &mut self,
+        startup_command: String,
+        plugin_start_function: TestPluginStartFunction,
+    ) {
+        self.plugins.insert(startup_command, plugin_start_function);
+    }
+}
+#[async_trait]
+impl PluginStarter for TestPluginStarter {
+    async fn start_app(&self, entry: &PluginEntry) -> Result<Box<dyn ProgramController>, Error> {
+        let startup_command = &entry.config.startup_command;
+        let plugin = self.plugins.get(startup_command);
+        if let Some(starter) = plugin {
+            Ok(starter().await)
+        } else {
+            Err(Error::new(
+                ErrorKind::InvalidData,
+                PluginError::StartupFailed("Could not find plugin to start".to_string()),
+            ))
+        }
     }
 }

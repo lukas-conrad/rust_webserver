@@ -1,4 +1,4 @@
-use crate::plugin_communication::plugin_communicator::{JsonCommunicator, PluginCommunicator};
+use crate::plugin_communication::plugin_communicator::{CommunicationError, Filter, JsonCommunicator, PluginCommunicator};
 use crate::plugin_old::models::Package::{HandshakeResponse, NormalResponse};
 use crate::plugin_old::models::{
     HandshakeResponseContent, HttpResponse, NormalResponseContent, Package,
@@ -100,5 +100,9 @@ impl TestPlugin {
             .await;
 
         Self { communicator }
+    }
+
+    async fn send_package(&self, package: &Package, filter: Option<Filter>) -> Result<Option<Package>, CommunicationError> {
+        self.communicator.lock().await.send_package(package, filter).await
     }
 }

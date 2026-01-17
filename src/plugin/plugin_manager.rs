@@ -96,24 +96,6 @@ impl PluginManager {
         }
     }
 
-    fn matches(actual: String, pattern: String) -> bool {
-        let mut pattern_pointer: usize = 0;
-        for i in 0..actual.len() {
-            let actual_letter = &actual[i..i + 1];
-            let pattern_letter = &pattern[pattern_pointer..pattern_pointer + 1];
-            let next_pattern_letter = &pattern[pattern_pointer + 1..pattern_pointer + 2];
-            if pattern_letter == "*" {
-                if actual_letter != pattern_letter {}
-            } else if actual_letter == pattern_letter {
-                pattern_pointer += 1;
-            } else {
-                return false;
-            }
-        }
-
-        true
-    }
-
     pub async fn start_plugin(&self, plugin_entry: &PluginEntry) -> Result<(), PluginError> {
         let running_plugin =
             RunningPlugin::start_plugin(plugin_entry, &self.plugin_starter).await?;

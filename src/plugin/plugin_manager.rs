@@ -7,9 +7,9 @@ use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_old::models::HttpRequest;
 use crate::plugin_old::models::Package::{NormalRequest, NormalResponse};
 use crate::plugin_old::models::{HttpResponse, NormalRequestContent};
+use log::{debug, error, info};
 use std::path::Path;
 use strum::Display;
-use tokio::fs;
 use tokio::sync::Mutex;
 
 #[derive(Display, Debug)]
@@ -58,7 +58,7 @@ impl PluginManager {
             .send_package_with_response(
                 &request,
                 Box::new(move |package| {
-                    if let NormalRequest(content) = package {
+                    if let NormalResponse(content) = package {
                         return content.package_id == package_id;
                     }
                     return false;
@@ -130,17 +130,32 @@ impl PluginManager {
             .await
             .map_err(|e| PluginScanError(e.to_string()))?;
         let mut plugin_entries: Vec<PluginEntry> = vec![];
+        info!("Searching in {} files", plugin_entries.len());
         for file in files {
             if file.file_name().unwrap() == "plugin_config.json" {
-                let config = fs::read_to_string(&file)
-                    .await
-                    .map(|json| serde_json::from_str::<PluginConfig>(&json));
+                debug!("Found Plugin Config at {:?}", file.to_str());
+                let config = async {
+                    let data = self
+                        .data_storage
+                        .load_data(&file)
+                        .await
+                        .map_err(|_| PluginScanError("File could not be loaded".to_string()))?;
+                    let json = String::from_utf8(data).map_err(|_| {
+                        PluginScanError("File could not be loaded as UTF-8".to_string())
+                    })?;
+                    serde_json::from_str::<PluginConfig>(&json).map_err(|_| {
+                        PluginScanError("File could not be parsed as JSON".to_string())
+                    })
+                }
+                .await;
 
-                // TODO: double Ok structure seems unclean
-                if let Ok(Ok(config)) = config {
-                    plugin_entries.push(PluginEntry::new(config, file));
-                } else {
-                    // TODO: add error handling
+                match config {
+                    Ok(config) => {
+                        plugin_entries.push(PluginEntry::new(config, file));
+                    }
+                    Err(err) => {
+                        error!("Plugin config could not be loaded ({})", err);
+                    }
                 }
             }
         }

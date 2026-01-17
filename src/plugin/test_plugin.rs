@@ -1,10 +1,13 @@
-use crate::plugin_communication::plugin_communicator::{CommunicationError, Filter, JsonCommunicator, PluginCommunicator};
+use crate::plugin_communication::plugin_communicator::{
+    CommunicationError, Filter, JsonCommunicator, PluginCommunicator,
+};
 use crate::plugin_old::models::Package::{HandshakeResponse, NormalResponse};
 use crate::plugin_old::models::{
     HandshakeResponseContent, HttpResponse, NormalResponseContent, Package,
 };
 use futures::FutureExt;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 
@@ -102,7 +105,15 @@ impl TestPlugin {
         Self { communicator }
     }
 
-    async fn send_package(&self, package: &Package, filter: Option<Filter>) -> Result<Option<Package>, CommunicationError> {
-        self.communicator.lock().await.send_package(package, filter).await
+    async fn send_package(
+        &self,
+        package: &Package,
+        filter: Option<Filter>,
+    ) -> Result<Option<Package>, CommunicationError> {
+        self.communicator
+            .lock()
+            .await
+            .send_package(package, filter)
+            .await
     }
 }

@@ -28,11 +28,54 @@ pub type CallbackFn = Box<
 >;
 
 pub trait Webserver {
-    fn set_listener(listener: CallbackFn);
+    fn set_listener(&self, listener: CallbackFn);
 }
 
 pub struct DefaultWebserver {
     listener: Arc<Mutex<Option<CallbackFn>>>,
+}
+
+impl DefaultWebserver {
+    async fn build_http_request(req: Request<Incoming>) -> HttpRequest {
+        let method = req.method().as_str().to_string();
+        let path = req.uri().path().to_string();
+
+        let host = req
+            .headers()
+            .get("host")
+            .map(|h| h.to_str().unwrap_or(""))
+            .unwrap_or("")
+            .to_string();
+
+        let headers: Vec<HttpHeader> = req
+            .headers()
+            .iter()
+            .map(|(name, value)| HttpHeader {
+                key: name.to_string(),
+                value: value.to_str().unwrap_or("").to_string(),
+            })
+            .collect();
+        let (_, body) = req.into_parts();
+        let body_bytes = body.collect().await.unwrap_or_default().to_bytes();
+
+        let request = HttpRequest {
+            request_method: method,
+            path,
+            host,
+            headers,
+            body: BASE64_STANDARD.encode(body_bytes),
+        };
+        request
+    }
+}
+
+impl Webserver for DefaultWebserver {
+    fn set_listener(&self, listener: CallbackFn) {
+        let web_listener= self.listener.clone();
+        tokio::spawn(async move {
+            let _ = web_listener.lock().await.insert(listener);
+        });
+    }
 }
 
 impl Service<Request<Incoming>> for DefaultWebserver {
@@ -44,14 +87,14 @@ impl Service<Request<Incoming>> for DefaultWebserver {
         let listener = self.listener.clone();
         Box::pin(async move {
             let result: Result<Response<Full<Bytes>>, ServerError> = async {
-                let listener_guard = listener
-                    .lock()
-                    .await;
-                let listener = listener_guard.as_ref()
-                    .ok_or(ServerError::RequestProcessingError(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "No listener configured".to_string(),
-                    ))?;
+                let listener_guard = listener.lock().await;
+                let listener =
+                    listener_guard
+                        .as_ref()
+                        .ok_or(ServerError::RequestProcessingError(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "No listener configured".to_string(),
+                        ))?;
 
                 let request = Self::build_http_request(req).await;
                 let response = listener(request).await.map_err(|err| {
@@ -113,39 +156,5 @@ impl Service<Request<Incoming>> for DefaultWebserver {
                 }
             }
         })
-    }
-}
-
-impl DefaultWebserver {
-    async fn build_http_request(req: Request<Incoming>) -> HttpRequest {
-        let method = req.method().as_str().to_string();
-        let path = req.uri().path().to_string();
-
-        let host = req
-            .headers()
-            .get("host")
-            .map(|h| h.to_str().unwrap_or(""))
-            .unwrap_or("")
-            .to_string();
-
-        let headers: Vec<HttpHeader> = req
-            .headers()
-            .iter()
-            .map(|(name, value)| HttpHeader {
-                key: name.to_string(),
-                value: value.to_str().unwrap_or("").to_string(),
-            })
-            .collect();
-        let (_, body) = req.into_parts();
-        let body_bytes = body.collect().await.unwrap_or_default().to_bytes();
-
-        let request = HttpRequest {
-            request_method: method,
-            path,
-            host,
-            headers,
-            body: BASE64_STANDARD.encode(body_bytes),
-        };
-        request
     }
 }

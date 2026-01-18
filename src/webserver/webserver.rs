@@ -31,11 +31,11 @@ pub trait Webserver {
     fn set_listener(&self, listener: CallbackFn);
 }
 
-pub struct DefaultWebserver {
+pub struct Http1Server {
     listener: Arc<Mutex<Option<CallbackFn>>>,
 }
 
-impl DefaultWebserver {
+impl Http1Server {
     async fn build_http_request(req: Request<Incoming>) -> HttpRequest {
         let method = req.method().as_str().to_string();
         let path = req.uri().path().to_string();
@@ -69,7 +69,7 @@ impl DefaultWebserver {
     }
 }
 
-impl Webserver for DefaultWebserver {
+impl Webserver for Http1Server {
     fn set_listener(&self, listener: CallbackFn) {
         let web_listener= self.listener.clone();
         tokio::spawn(async move {
@@ -78,7 +78,7 @@ impl Webserver for DefaultWebserver {
     }
 }
 
-impl Service<Request<Incoming>> for DefaultWebserver {
+impl Service<Request<Incoming>> for Http1Server {
     type Response = Response<Full<Bytes>>;
     type Error = Infallible;
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;

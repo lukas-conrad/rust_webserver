@@ -3,6 +3,7 @@ use rust_webserver::io::data_storage::DataStorage;
 use rust_webserver::io::in_memory_storage::InMemoryDataStorage;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin::plugin_manager::PluginManager;
+use rust_webserver::plugin::plugin_manager::RequestHandler;
 use rust_webserver::plugin_communication::app_starter::plugin_starter::ProgramController;
 use rust_webserver::plugin_communication::app_starter::test_plugin_starter::{
     TestPluginProgramController, TestPluginStarter,
@@ -39,7 +40,10 @@ async fn plugin_manager_test() {
     );
     let mut plugin_manager = PluginManager::new(storage, Box::new(plugin_starter));
 
-    plugin_manager.scan_plugins(Path::new("plugins")).await.unwrap();
+    plugin_manager
+        .scan_plugins(Path::new("plugins"))
+        .await
+        .unwrap();
 
     assert_eq!(plugin_manager.plugin_entries.len(), 1);
 

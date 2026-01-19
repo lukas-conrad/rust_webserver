@@ -7,6 +7,7 @@ use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_old::models::HttpRequest;
 use crate::plugin_old::models::Package::{NormalRequest, NormalResponse};
 use crate::plugin_old::models::{HttpResponse, NormalRequestContent};
+use async_trait::async_trait;
 use log::{debug, error, info};
 use std::path::Path;
 use strum::Display;
@@ -21,10 +22,14 @@ pub enum PluginError {
     PluginNotFoundError(String),
 }
 
+#[async_trait]
+pub trait RequestHandler: Send + Sync {
+    async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError>;
+}
 pub struct PluginManager {
     pub plugins: Mutex<Vec<RunningPlugin>>,
     pub plugin_entries: Vec<PluginEntry>,
-    data_storage: Box<dyn DataStorage>,
+    data_storage: Mutex<Box<dyn DataStorage>>,
     plugin_starter: Box<dyn PluginStarter>,
 }
 impl PluginManager {
@@ -32,45 +37,9 @@ impl PluginManager {
         Self {
             plugins: Mutex::new(vec![]),
             plugin_entries: vec![],
-            data_storage,
+            data_storage: Mutex::new(data_storage),
             plugin_starter,
         }
-    }
-
-    pub async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError> {
-        let running_plugins = self.plugins.lock().await;
-        let plugin = Self::find_plugin_for_request(&*running_plugins, &request);
-
-        if plugin.is_none() {
-            return Err(PluginNotFoundError(
-                "Could not find any plugin to match this request".to_string(),
-            ));
-        }
-
-        let plugin = plugin.unwrap();
-        let package_id = rand::random();
-
-        let request = NormalRequest(NormalRequestContent {
-            package_id,
-            http_request: request,
-        });
-        let NormalResponse(response) = plugin
-            .send_package_with_response(
-                &request,
-                Box::new(move |package| {
-                    if let NormalResponse(content) = package {
-                        return content.package_id == package_id;
-                    }
-                    return false;
-                }),
-            )
-            .await
-            .map_err(|e| PluginError::PluginCommunicationError(e.to_string()))?
-        else {
-            panic!("Wrong package returned")
-        };
-
-        Ok(response.http_response)
     }
 
     pub fn find_plugin_for_request<'a>(
@@ -108,6 +77,8 @@ impl PluginManager {
     pub async fn scan_plugins(&mut self, plugins_path: &Path) -> Result<(), PluginError> {
         let files = self
             .data_storage
+            .lock()
+            .await
             .list_files(plugins_path, true)
             .await
             .map_err(|e| PluginScanError(e.to_string()))?;
@@ -119,6 +90,8 @@ impl PluginManager {
                 let config = async {
                     let data = self
                         .data_storage
+                        .lock()
+                        .await
                         .load_data(&file)
                         .await
                         .map_err(|_| PluginScanError("File could not be loaded".to_string()))?;
@@ -144,5 +117,40 @@ impl PluginManager {
 
         self.plugin_entries = plugin_entries;
         Ok(())
+    }
+}
+
+#[async_trait]
+impl RequestHandler for PluginManager {
+    async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError> {
+        let running_plugins = self.plugins.lock().await;
+        let plugin = Self::find_plugin_for_request(&*running_plugins, &request);
+
+        let plugin = plugin.ok_or(PluginNotFoundError(
+            "Could not find any plugin to match this request".to_string(),
+        ))?;
+        let package_id = rand::random();
+
+        let request = NormalRequest(NormalRequestContent {
+            package_id,
+            http_request: request,
+        });
+        let NormalResponse(response) = plugin
+            .send_package_with_response(
+                &request,
+                Box::new(move |package| {
+                    if let NormalResponse(content) = package {
+                        return content.package_id == package_id;
+                    }
+                    return false;
+                }),
+            )
+            .await
+            .map_err(|e| PluginError::PluginCommunicationError(e.to_string()))?
+        else {
+            panic!("Wrong package returned")
+        };
+
+        Ok(response.http_response)
     }
 }

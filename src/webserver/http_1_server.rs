@@ -186,6 +186,9 @@ mod tests {
     use hyper::Request;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::sync::Arc;
+    use std::time::Instant;
+    use base64::Engine;
+    use base64::prelude::BASE64_STANDARD;
     use tokio::sync::{oneshot, Mutex};
 
     #[tokio::test]
@@ -226,17 +229,19 @@ mod tests {
             }
         });
 
+        let body_bytes = "hello this is a test".to_string();
+
         // Request senden
         let req = Request::builder()
             .uri("/test")
             .method("GET")
-            .body(http_body_util::Empty::<Bytes>::new())
+            .body(http_body_util::Full::new(Bytes::from(body_bytes.clone())))
             .unwrap();
 
         let _res = sender.send_request(req).await.unwrap();
 
         let request = receiver.await.unwrap();
 
-        assert_eq!(request.body, "");
+        assert_eq!(request.body, BASE64_STANDARD.encode(body_bytes));
     }
 }

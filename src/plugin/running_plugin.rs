@@ -8,13 +8,13 @@ use crate::plugin_communication::plugin_communicator::{
 };
 use crate::plugin_communication::protocols::protocol::{Protocol, ProtocolError};
 use crate::plugin_old::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
-use std::io::Error;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 pub struct RunningPlugin {
     communicator: Box<dyn PluginCommunicator>,
-    protocol: Box<dyn Protocol>,
+    protocol: Mutex<Box<dyn Protocol>>,
     protocol_enum: ProtocolEnum,
     request_timeout: u64,
     max_startup_time: u64,
@@ -36,7 +36,7 @@ impl RunningPlugin {
 
         let plugin = Self {
             communicator,
-            protocol,
+            protocol: Mutex::new(protocol),
             request_timeout: entry.config.max_request_timeout,
             max_startup_time: entry.config.max_startup_time,
             protocol_enum: protocol_enum.clone(),
@@ -89,7 +89,7 @@ impl RunningPlugin {
     }
 
     pub async fn stop_plugin(&mut self) -> Result<(), ProtocolError> {
-        self.protocol.stop().await
+        self.protocol.lock().await.stop().await
     }
 
     pub async fn set_listener(&mut self, listener: Listener) {

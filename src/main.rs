@@ -70,5 +70,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         async move { plugin_manager.clone().route_request(request).await }.boxed()
     }));
 
+    tokio::signal::ctrl_c().await?;
+
     Ok(())
 }

@@ -29,6 +29,7 @@ pub trait DataStorage: Send {
 pub trait FSBinding: Send + Sync {
     fn translate_to_fs(&self, path: &Box<Path>) -> Result<Box<Path>, FileSystemError>;
 }
+#[derive(Clone)]
 pub struct FSDataStorage {
     pub base_path: Box<Path>,
 }

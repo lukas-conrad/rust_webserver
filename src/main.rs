@@ -1,28 +1,27 @@
 extern crate core;
 
-use hyper::server::conn::http1;
-use hyper_util::rt::TokioIo;
+use crate::io::data_storage::FSDataStorage;
+use futures::FutureExt;
 use log::{error, info};
-use std::error;
-use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::{env, error};
 use tokio::fs;
-use tokio::net::TcpListener;
 
 mod control_system;
 mod plugin_old;
 mod webserver;
 
-mod webserver_old;
 mod io;
 mod plugin;
 mod plugin_communication;
+mod webserver_old;
 
-use crate::control_system::cli::CommandLineInterface;
-use crate::control_system::control_system::{ControlSystemWrapper, DefaultControlSystem};
-use crate::plugin_old::PluginManager;
-use webserver_old::{WebServer, WebServerService};
+use crate::plugin::plugin_manager::{PluginError, PluginManager, RequestHandler};
+use crate::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
+use crate::webserver::http_1_server::Http1Server;
+use crate::webserver::webserver::Webserver;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
@@ -39,47 +38,37 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    let plugin_manager = Arc::new(PluginManager::new(error_log_dir));
+    let plugin_data_storage = FSDataStorage::new(env::current_dir()?.into_boxed_path());
+    let plugin_starter = DefaultPluginStarter::new(Arc::new(plugin_data_storage.clone()));
 
-    match plugin_manager.scan_plugins_directory(&plugins_dir).await {
-        Ok(_) => info!("Successfully scanned plugins directory"),
-        Err(e) => error!("Error scanning plugins directory: {}", e),
-    }
-    let control_system = Arc::new(ControlSystemWrapper::new(DefaultControlSystem::new(
-        plugin_manager.clone(),
-    )));
-    info!("Control System initialized");
-    let _ = plugin_manager
-        .cli
-        .lock()
+    let mut plugin_manager =
+        PluginManager::new(Box::new(plugin_data_storage), Box::new(plugin_starter));
+
+    plugin_manager
+        .scan_plugins(Path::new("plugins"))
         .await
-        .insert(control_system.clone());
-
-    let server = Arc::new(WebServer::new(plugin_manager.clone()));
-
-    // Starte die CLI in einem separaten Thread
-    let cli_control_system = control_system.clone();
-    std::thread::spawn(move || {
-        let cli = CommandLineInterface::new(cli_control_system);
-        cli.run();
-    });
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], 80));
-    let listener = TcpListener::bind(addr).await?;
-    info!("Webserver started on http://{}", addr);
-
-    loop {
-        let (stream, _) = listener.accept().await?;
-        let io = TokioIo::new(stream);
-
-        let service = WebServerService {
-            server: server.clone(),
-        };
-
-        tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-                error!("Connection error: {:?}", err);
+        .unwrap();
+    for entry in &plugin_manager.plugin_entries {
+        let result = plugin_manager.start_plugin(entry).await;
+        match result {
+            Err(e) => {
+                error!(
+                    "Error when staring plugin {}. Error: {}",
+                    entry.config.plugin_name, e
+                )
             }
-        });
+            _ => {}
+        }
     }
+
+    let plugin_manager: Arc<dyn RequestHandler> = Arc::new(plugin_manager);
+
+    let server = Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80)).await?;
+
+    server.set_listener(Box::new(move |request| {
+        let plugin_manager = plugin_manager.clone();
+        async move { plugin_manager.clone().route_request(request).await }.boxed()
+    }));
+
+    Ok(())
 }

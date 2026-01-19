@@ -23,7 +23,7 @@ pub struct Http1Server {
 }
 
 impl Http1Server {
-    async fn start(addr: SocketAddr) -> Result<Arc<Self>, std::io::Error> {
+    pub async fn start(addr: SocketAddr) -> Result<Arc<Self>, std::io::Error> {
         let server = Arc::new(Self {
             listener: Arc::new(Mutex::new(None)),
         });

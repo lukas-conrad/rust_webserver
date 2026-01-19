@@ -181,14 +181,13 @@ mod tests {
     use crate::plugin_old::models::{HttpRequest, HttpResponse};
     use crate::webserver::http_1_server::Http1Server;
     use crate::webserver::webserver::Webserver;
+    use base64::prelude::BASE64_STANDARD;
+    use base64::Engine;
     use bytes::Bytes;
     use futures::FutureExt;
     use hyper::Request;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::sync::Arc;
-    use std::time::Instant;
-    use base64::Engine;
-    use base64::prelude::BASE64_STANDARD;
     use tokio::sync::{oneshot, Mutex};
 
     #[tokio::test]

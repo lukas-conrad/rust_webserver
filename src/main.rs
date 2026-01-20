@@ -2,7 +2,7 @@ extern crate core;
 
 use crate::io::data_storage::FSDataStorage;
 use futures::FutureExt;
-use log::{error, info};
+use log::{debug, error, info};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -26,7 +26,7 @@ use crate::webserver::webserver::Webserver;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     env_logger::init();
-    info!("Starting modular webserver...");
+    info!("Starting webserver...");
 
     let plugins_dir = PathBuf::from("plugins");
     let error_log_dir = PathBuf::from("error_logs");
@@ -66,6 +66,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     let server = Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80)).await?;
 
     server.set_listener(Box::new(move |request| {
+        debug!("Received package {:?}", request);
         let plugin_manager = plugin_manager.clone();
         async move { plugin_manager.clone().route_request(request).await }.boxed()
     }));

@@ -1,8 +1,9 @@
 use crate::io::data_storage::FSBinding;
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin_communication::app_starter::default_program_controller::DefaultProgramController;
-use crate::plugin_communication::app_starter::plugin_starter::{ProgramController, PluginStarter};
+use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
 use async_trait::async_trait;
+use log::info;
 use std::io::Error;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -22,6 +23,11 @@ impl DefaultPluginStarter {
 impl PluginStarter for DefaultPluginStarter {
     async fn start_app(&self, entry: &PluginEntry) -> Result<Box<dyn ProgramController>, Error> {
         let dir = entry.path.parent().unwrap();
+
+        info!(
+            "Starting plugin {} with {}",
+            entry.config.plugin_name, entry.config.startup_command
+        );
 
         #[cfg(target_os = "windows")]
         let process = Command::new("cmd")

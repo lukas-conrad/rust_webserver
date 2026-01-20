@@ -8,6 +8,7 @@ use crate::plugin_communication::plugin_communicator::{
 };
 use crate::plugin_communication::protocols::protocol::{Protocol, ProtocolError};
 use crate::plugin_old::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
+use log::{debug, error, info};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -47,6 +48,10 @@ impl RunningPlugin {
     }
 
     async fn init_plugin(&self) -> Result<(), PluginError> {
+        info!(
+            "Initiating handshake for plugin {}",
+            self.entry.config.plugin_name
+        );
         let handshake_request = Package::HandshakeRequest(HandshakeRequestContent {
             protocol: self.protocol_enum.to_string(),
         });
@@ -54,18 +59,27 @@ impl RunningPlugin {
             .communicator
             .send_package(&handshake_request, Some(PackageHandshakeResponse::filter()))
             .await
-            .map_err(|e| PluginError::PluginInitError(e.to_string()))?
+            .map_err(|e| PluginInitError(e.to_string()))?
             .unwrap();
 
         if let Package::HandshakeResponse(content) = response {
             if content.response_code == 0 {
+                debug!(
+                    "Handshake of plugin {} successful",
+                    self.entry.config.plugin_name
+                );
                 Ok(())
             } else {
-                Err(PluginInitError(format!(
+                let error = PluginInitError(format!(
                     "Plugin handshake error: {code}, {text}",
                     code = content.response_code,
                     text = content.response_code_text
-                )))
+                ));
+                error!(
+                    "Handshake of plugin {} unsuccessful: {}",
+                    self.entry.config.plugin_name, error
+                );
+                Err(error)
             }
         } else {
             panic!("Wrong package returned")

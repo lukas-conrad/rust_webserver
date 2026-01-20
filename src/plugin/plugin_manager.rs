@@ -83,10 +83,10 @@ impl PluginManager {
             .await
             .map_err(|e| PluginScanError(e.to_string()))?;
         let mut plugin_entries: Vec<PluginEntry> = vec![];
-        info!("Searching in {} files", plugin_entries.len());
+        debug!("Searching in {} files", plugin_entries.len());
         for file in files {
             if file.file_name().unwrap() == "plugin_config.json" {
-                debug!("Found Plugin Config at {:?}", file.to_str());
+                info!("Found Plugin Config at {:?}", file.to_str());
                 let config = async {
                     let data = self
                         .data_storage
@@ -106,6 +106,7 @@ impl PluginManager {
 
                 match config {
                     Ok(config) => {
+                        info!("found plugin {} at {:?}", config.plugin_name, file);
                         plugin_entries.push(PluginEntry::new(config, file));
                     }
                     Err(err) => {

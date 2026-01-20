@@ -92,13 +92,35 @@ async fn system_test() {
     .unwrap();
 
     println!("starting server..");
-    // Start the webserver
+    // Start the webserver with debug logging
     let mut server_process = Command::new(&temp_main_exe)
         .current_dir(temp_dir.path())
+        .env("RUST_LOG", "debug")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("Failed to start server");
+
+    // Capture stdout and stderr
+    let mut stdout = server_process.stdout.take().expect("Failed to get stdout");
+    let mut stderr = server_process.stderr.take().expect("Failed to get stderr");
+
+    // Spawn tasks to read stdout and stderr
+    let stdout_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut buf)
+            .await
+            .ok();
+        String::from_utf8_lossy(&buf).to_string()
+    });
+
+    let stderr_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut stderr, &mut buf)
+            .await
+            .ok();
+        String::from_utf8_lossy(&buf).to_string()
+    });
 
     // Wait until the server is ready
     sleep(Duration::from_secs(2)).await;
@@ -165,4 +187,14 @@ async fn system_test() {
         .kill()
         .await
         .expect("Failed to kill server process");
+
+    // Wait for output tasks to complete
+    let stdout_output = stdout_task.await.expect("Failed to read stdout");
+    let stderr_output = stderr_task.await.expect("Failed to read stderr");
+
+    // Print server logs
+    println!("=== Server STDOUT ===");
+    println!("{}", stdout_output);
+    println!("=== Server STDERR ===");
+    println!("{}", stderr_output);
 }

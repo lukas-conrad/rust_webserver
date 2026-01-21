@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
 use hyper::client::conn::http1::handshake;
 use hyper::Request;
@@ -6,12 +6,20 @@ use hyper_util::rt::TokioIo;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin_old::models::RequestInformation;
 use std::env;
+use std::net::TcpListener;
 use std::process::Stdio;
 use tempfile::TempDir;
 use tokio::fs;
+use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
+
+/// Find a free port by binding to port 0 and getting the assigned port
+fn find_free_port() -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to port 0");
+    listener.local_addr().expect("Failed to get local addr").port()
+}
 
 #[tokio::test]
 async fn system_test() {
@@ -75,8 +83,8 @@ async fn system_test() {
         plugin_name: "test_plugin".to_string(),
         startup_command: startup_cmd.to_string(),
         protocol: ProtocolEnum::StdIoJson,
-        max_request_timeout: 5000,
-        max_startup_time: 5000,
+        max_request_timeout: 1000,
+        max_startup_time: 1000,
         request_information: RequestInformation {
             request_methods: vec!["*".to_string()],
             hosts: vec!["*".to_string()],
@@ -91,45 +99,62 @@ async fn system_test() {
     .await
     .unwrap();
 
-    println!("starting server..");
+    // Find a free port
+    let port = find_free_port();
+    println!("Using port {} for test", port);
+
     // Start the webserver with debug logging
     let mut server_process = Command::new(&temp_main_exe)
         .current_dir(temp_dir.path())
         .env("RUST_LOG", "debug")
+        .arg("--port")
+        .arg(port.to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("Failed to start server");
 
     // Capture stdout and stderr
-    let mut stdout = server_process.stdout.take().expect("Failed to get stdout");
-    let mut stderr = server_process.stderr.take().expect("Failed to get stderr");
+    let stdout = server_process.stdout.take().expect("Failed to get stdout");
+    let stderr = server_process.stderr.take().expect("Failed to get stderr");
 
-    // Spawn tasks to read stdout and stderr
+    // Spawn tasks to read stdout and stderr and print them in real-time
     let stdout_task = tokio::spawn(async move {
-        let mut buf = Vec::new();
-        tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut buf)
-            .await
-            .ok();
-        String::from_utf8_lossy(&buf).to_string()
+        use tokio::io::AsyncBufReadExt;
+        let reader = tokio::io::BufReader::new(stdout);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            println!("[SERVER] {}", line);
+        }
     });
 
     let stderr_task = tokio::spawn(async move {
-        let mut buf = Vec::new();
-        tokio::io::AsyncReadExt::read_to_end(&mut stderr, &mut buf)
-            .await
-            .ok();
-        String::from_utf8_lossy(&buf).to_string()
+        use tokio::io::AsyncBufReadExt;
+        let reader = tokio::io::BufReader::new(stderr);
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            eprintln!("[SERVER ERR] {}", line);
+        }
     });
 
-    // Wait until the server is ready
+    // Check if the server process is still running
+    sleep(Duration::from_millis(500)).await;
+    match server_process.try_wait() {
+        Ok(Some(status)) => {
+            panic!("Server was immediately terminated with status: {}", status);
+        }
+        Ok(None) => println!("Server is running..."),
+        Err(e) => panic!("Error checking server status: {}", e),
+    }
+
+    // Wait for the server to start
     sleep(Duration::from_secs(2)).await;
 
     // Send HTTP request with hyper
     let test_body = "Hello, World!";
 
-    // Connect to the server
-    let stream = TcpStream::connect("127.0.0.1:80")
+    // Connect to the server using the dynamic port
+    let stream = TcpStream::connect(format!("127.0.0.1:{}", port))
         .await
         .expect("Failed to connect");
     let io = TokioIo::new(stream);
@@ -188,13 +213,12 @@ async fn system_test() {
         .await
         .expect("Failed to kill server process");
 
-    // Wait for output tasks to complete
-    let stdout_output = stdout_task.await.expect("Failed to read stdout");
-    let stderr_output = stderr_task.await.expect("Failed to read stderr");
+    // Wait a bit for final logs to be printed
+    sleep(Duration::from_millis(100)).await;
 
-    // Print server logs
-    println!("=== Server STDOUT ===");
-    println!("{}", stdout_output);
-    println!("=== Server STDERR ===");
-    println!("{}", stderr_output);
+    // Abort the logging tasks
+    stdout_task.abort();
+    stderr_task.abort();
+
+    println!("=== Test completed ===");
 }

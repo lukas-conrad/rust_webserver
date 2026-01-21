@@ -106,7 +106,7 @@ impl PluginManager {
 
                 match config {
                     Ok(config) => {
-                        info!("found plugin {} at {:?}", config.plugin_name, file);
+                        info!("Found plugin {} at {:?}", config.plugin_name, file);
                         plugin_entries.push(PluginEntry::new(config, file));
                     }
                     Err(err) => {

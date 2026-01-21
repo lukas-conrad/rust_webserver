@@ -55,11 +55,14 @@ impl RunningPlugin {
         let handshake_request = Package::HandshakeRequest(HandshakeRequestContent {
             protocol: self.protocol_enum.to_string(),
         });
-        let response = self
+
+        let result = tokio::select! {
+            result = self
             .communicator
-            .send_package(&handshake_request, Some(PackageHandshakeResponse::filter()))
-            .await
-            .map_err(|e| PluginInitError(e.to_string()))?
+            .send_package(&handshake_request, Some(PackageHandshakeResponse::filter())) => result,
+            _ = sleep(Duration::from_millis(self.max_startup_time)) => Err(CommunicationError::TimeoutError(format!("Timeout after {ms} milliseconds", ms = self.request_timeout)))
+        };
+        let response = result.map_err(|e| PluginInitError(e.to_string()))?
             .unwrap();
 
         if let Package::HandshakeResponse(content) = response {

@@ -1,6 +1,7 @@
 extern crate core;
 
 use crate::io::data_storage::FSDataStorage;
+use clap::Parser;
 use futures::FutureExt;
 use log::{debug, error, info};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -23,10 +24,22 @@ use crate::plugin_communication::app_starter::default_plugin_starter::DefaultPlu
 use crate::webserver::http_1_server::Http1Server;
 use crate::webserver::webserver::Webserver;
 
+/// Simple HTTP/1.1 webserver with plugin system
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Port to bind the server to
+    #[arg(short, long, default_value_t = 80)]
+    port: u16,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     env_logger::init();
-    info!("Starting webserver...");
+
+    let args = Args::parse();
+
+    info!("Starting webserver on port {}...", args.port);
 
     let plugins_dir = PathBuf::from("plugins");
     let error_log_dir = PathBuf::from("error_logs");
@@ -63,13 +76,20 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
 
     let plugin_manager: Arc<dyn RequestHandler> = Arc::new(plugin_manager);
 
-    let server = Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80)).await?;
-
-    server.set_listener(Box::new(move |request| {
-        debug!("Received package {:?}", request);
-        let plugin_manager = plugin_manager.clone();
-        async move { plugin_manager.clone().route_request(request).await }.boxed()
-    }));
+    let server = Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port)).await;
+    match server {
+        Ok(server) => {
+            server.set_listener(Box::new(move |request| {
+                debug!("Received package {:?}", request);
+                let plugin_manager = plugin_manager.clone();
+                async move { plugin_manager.clone().route_request(request).await }.boxed()
+            }));
+        }
+        Err(e) => {
+            error!("Could not start webserver: {}", e.to_string());
+            return Err(Box::from(e));
+        }
+    }
 
     tokio::signal::ctrl_c().await?;
 

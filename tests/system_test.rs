@@ -1,17 +1,16 @@
-use bytes::{Buf, Bytes};
-use http_body_util::{BodyExt, Full};
-use hyper::client::conn::http1::handshake;
+mod test_utils;
+
+use bytes::Bytes;
+use http_body_util::Full;
 use hyper::Request;
-use hyper_util::rt::TokioIo;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin_old::models::RequestInformation;
 use std::env;
 use std::net::TcpListener;
 use std::process::Stdio;
 use tempfile::TempDir;
+use test_utils::{check_running, print_stdio, response_to_string, setup_sender};
 use tokio::fs;
-use tokio::io::AsyncReadExt;
-use tokio::net::TcpStream;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 
@@ -119,33 +118,12 @@ async fn system_test() {
     let stderr = server_process.stderr.take().expect("Failed to get stderr");
 
     // Spawn tasks to read stdout and stderr and print them in real-time
-    let stdout_task = tokio::spawn(async move {
-        use tokio::io::AsyncBufReadExt;
-        let reader = tokio::io::BufReader::new(stdout);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            println!("[SERVER] {}", line);
-        }
-    });
-
-    let stderr_task = tokio::spawn(async move {
-        use tokio::io::AsyncBufReadExt;
-        let reader = tokio::io::BufReader::new(stderr);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            eprintln!("[SERVER ERR] {}", line);
-        }
-    });
+    let stdout_task = print_stdio(stdout, "[SERVER]".to_string());
+    let stderr_task = print_stdio(stderr, "[SERVER ERR]".to_string());
 
     // Check if the server process is still running
     sleep(Duration::from_millis(500)).await;
-    match server_process.try_wait() {
-        Ok(Some(status)) => {
-            panic!("Server was immediately terminated with status: {}", status);
-        }
-        Ok(None) => println!("Server is running..."),
-        Err(e) => panic!("Error checking server status: {}", e),
-    }
+    check_running(&mut server_process).await;
 
     // Wait for the server to start
     sleep(Duration::from_secs(2)).await;
@@ -153,21 +131,8 @@ async fn system_test() {
     // Send HTTP request with hyper
     let test_body = "Hello, World!";
 
-    // Connect to the server using the dynamic port
-    let stream = TcpStream::connect(format!("127.0.0.1:{}", port))
-        .await
-        .expect("Failed to connect");
-    let io = TokioIo::new(stream);
-
-    // HTTP/1 handshake
-    let (mut sender, conn) = handshake(io).await.expect("Failed to handshake");
-
-    // Start the connection in the background
-    tokio::task::spawn(async move {
-        if let Err(err) = conn.await {
-            eprintln!("Connection error: {:?}", err);
-        }
-    });
+    // Setup HTTP connection
+    let mut sender = setup_sender::<http_body_util::Full<bytes::Bytes>>(port).await;
 
     // Create the request
     let req = Request::builder()
@@ -185,14 +150,7 @@ async fn system_test() {
         .expect("Failed to send request");
 
     // Read the response body
-    let status = response.status();
-    let body_bytes = response
-        .into_body()
-        .collect()
-        .await
-        .expect("Failed to read response body")
-        .to_bytes();
-    let response_body = String::from_utf8(body_bytes.to_vec()).expect("Invalid UTF-8");
+    let (status, response_body) = response_to_string(response).await;
 
     // Debug output
     println!("Response status: {}", status);
@@ -219,6 +177,4 @@ async fn system_test() {
     // Abort the logging tasks
     stdout_task.abort();
     stderr_task.abort();
-
-    println!("=== Test completed ===");
 }

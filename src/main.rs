@@ -19,12 +19,11 @@ mod plugin;
 mod plugin_communication;
 mod webserver_old;
 
-use crate::plugin::plugin_manager::{PluginError, PluginManager, RequestHandler};
+use crate::plugin::plugin_manager::{PluginManager, RequestHandler};
 use crate::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
 use crate::webserver::http_1_server::Http1Server;
 use crate::webserver::webserver::Webserver;
 
-/// Simple HTTP/1.1 webserver with plugin system
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {

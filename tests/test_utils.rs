@@ -25,7 +25,7 @@ pub fn print_stdio<R: AsyncRead + Unpin + Send + 'static>(
 
 /// Check if a process is still running
 /// Panics if the process has already terminated
-pub async fn check_running(child: &mut Child) {
+pub fn check_server_running(child: &mut Child) {
     match child.try_wait() {
         Ok(Some(status)) => {
             panic!("Server was immediately terminated with status: {}", status);

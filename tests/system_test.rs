@@ -9,7 +9,7 @@ use std::env;
 use std::net::TcpListener;
 use std::process::Stdio;
 use tempfile::TempDir;
-use test_utils::{check_running, print_stdio, response_to_string, setup_sender};
+use test_utils::{check_server_running, print_stdio, response_to_string, setup_sender};
 use tokio::fs;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
@@ -110,6 +110,7 @@ async fn system_test() {
         .arg(port.to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .kill_on_drop(true)
         .spawn()
         .expect("Failed to start server");
 
@@ -123,7 +124,7 @@ async fn system_test() {
 
     // Check if the server process is still running
     sleep(Duration::from_millis(500)).await;
-    check_running(&mut server_process).await;
+    check_server_running(&mut server_process);
 
     // Wait for the server to start
     sleep(Duration::from_secs(2)).await;
@@ -132,7 +133,7 @@ async fn system_test() {
     let test_body = "Hello, World!";
 
     // Setup HTTP connection
-    let mut sender = setup_sender::<http_body_util::Full<bytes::Bytes>>(port).await;
+    let mut sender = setup_sender::<Full<Bytes>>(port).await;
 
     // Create the request
     let req = Request::builder()

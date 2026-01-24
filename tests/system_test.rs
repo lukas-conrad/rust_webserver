@@ -7,17 +7,20 @@ use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin_old::models::RequestInformation;
 use std::env;
 use std::net::TcpListener;
+use std::process::Command;
 use std::process::Stdio;
 use tempfile::TempDir;
 use test_utils::{check_server_running, print_stdio, response_to_string, setup_sender};
 use tokio::fs;
-use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 
 /// Find a free port by binding to port 0 and getting the assigned port
 fn find_free_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to port 0");
-    listener.local_addr().expect("Failed to get local addr").port()
+    listener
+        .local_addr()
+        .expect("Failed to get local addr")
+        .port()
 }
 
 #[tokio::test]
@@ -110,7 +113,6 @@ async fn system_test() {
         .arg(port.to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
         .spawn()
         .expect("Failed to start server");
 
@@ -169,13 +171,13 @@ async fn system_test() {
     // Stop the server
     server_process
         .kill()
-        .await
         .expect("Failed to kill server process");
 
-    // Wait a bit for final logs to be printed
-    sleep(Duration::from_millis(100)).await;
+    server_process
+        .wait()
+        .expect("Failed to wait for server process");
 
     // Abort the logging tasks
-    stdout_task.abort();
-    stderr_task.abort();
+    drop(stdout_task);
+    drop(stderr_task);
 }

@@ -37,6 +37,7 @@ impl PluginStarter for DefaultPluginStarter {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .kill_on_drop(true)
             .spawn()?;
 
         #[cfg(not(target_os = "windows"))]
@@ -47,6 +48,7 @@ impl PluginStarter for DefaultPluginStarter {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .kill_on_drop(true)
             .spawn()?;
 
         Ok(Box::new(DefaultProgramController::new(process)))

@@ -12,7 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 strum = { version = "0.27.1", features = ["derive"] }
 hyper = { version = "1", features = ["full"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.49.0", features = ["full"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 bytes = "1.0"
@@ -41,4 +41,3 @@ path = "src/bin/test_plugin_bin.rs"
 
 [dev-dependencies]
 tempfile = "3.13"
-

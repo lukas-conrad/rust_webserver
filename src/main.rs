@@ -8,6 +8,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::{env, error};
+use std::process::exit;
 use tokio::fs;
 
 mod control_system;
@@ -34,6 +35,10 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
+    std::panic::set_hook(Box::new(|panic_info| {
+        eprintln!("Panic occurred: {:?}", panic_info);
+        std::process::exit(1);
+    }));
     env_logger::init();
 
     let args = Args::parse();
@@ -90,7 +95,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    tokio::signal::ctrl_c().await?;
+    std::future::pending::<()>().await;
 
-    Ok(())
+    exit(0);
 }

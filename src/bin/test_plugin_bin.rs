@@ -1,3 +1,4 @@
+use std::process::exit;
 use tokio::io::{stdin, stdout};
 use rust_webserver::plugin::test_plugin::TestPlugin;
 
@@ -7,6 +8,7 @@ async fn main() {
     let plugin_write = stdout();
     let _ = TestPlugin::new(Box::new(plugin_read), Box::new(plugin_write)).await;
 
+    std::future::pending::<()>().await;
 
-    tokio::signal::ctrl_c().await.unwrap();
+    exit(0);
 }

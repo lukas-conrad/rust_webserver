@@ -1,24 +1,30 @@
+use std::io::{BufRead, BufReader};
+use std::thread::JoinHandle;
 use hyper::body::Incoming;
 use hyper::client::conn::http1::SendRequest;
 use hyper::Response;
 use hyper_util::rt::TokioIo;
-use tokio::io::{AsyncBufReadExt, AsyncRead};
+use tokio::io::{AsyncRead};
 use tokio::net::TcpStream;
-use tokio::process::Child;
-use tokio::task::JoinHandle;
+use std::process::Child;
 use http_body_util::BodyExt;
 
 /// Print stdout/stderr in real-time with a prefix
 /// Returns a JoinHandle that can be used to abort the task
-pub fn print_stdio<R: AsyncRead + Unpin + Send + 'static>(
+pub fn print_stdio<R: Unpin + Send + 'static + std::io::Read>(
     stream: R,
     prefix: String,
 ) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        let reader = tokio::io::BufReader::new(stream);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            println!("{} {}", prefix, line);
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stream);
+        for line in reader.lines() {
+            match line {
+                Ok(line) => println!("{} {}", prefix, line),
+                Err(e) => {
+                    eprintln!("{} Read error: {}", prefix, e);
+                    break;
+                }
+            }
         }
     })
 }
@@ -40,7 +46,7 @@ pub fn check_server_running(child: &mut Child) {
 /// Generic over body type B
 pub async fn setup_sender<B>(port: u16) -> SendRequest<B> 
 where
-    B: hyper::body::Body + 'static + std::marker::Send,
+    B: hyper::body::Body + 'static + Send,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {

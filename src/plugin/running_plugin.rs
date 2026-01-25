@@ -10,6 +10,7 @@ use crate::plugin_communication::protocols::protocol::{Protocol, ProtocolError};
 use crate::plugin_communication::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
 use log::{debug, error, info};
 use std::time::Duration;
+use futures::FutureExt;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 
@@ -30,10 +31,15 @@ impl RunningPlugin {
         let protocol_enum = entry.config.protocol.clone();
         let mut protocol = protocol_enum.get_protocol();
 
-        let communicator = protocol
+        let mut communicator = protocol
             .start_communication(entry, plugin_starter)
             .await
             .map_err(|e| PluginError::PluginScanError(e.to_string()))?;
+        
+        communicator.set_listener(Box::new(|package| {
+            // TODO: Implement handling of incoming packages (e.g. Error package)
+            async {  }.boxed()
+        })).await;
 
         let plugin = Self {
             communicator,

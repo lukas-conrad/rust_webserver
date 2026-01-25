@@ -99,12 +99,9 @@ pub struct LogContent {
     pub level: String,
     pub message: String,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CliResponseContent {
-    pub success: bool,
-    pub response: serde_json::Value,
+pub struct ShutdownContent {
 }
 
 macro_rules! package {
@@ -203,7 +200,7 @@ package! {
     NormalResponse(NormalResponseContent),
     Error(ErrorReportContent),
     Log(LogContent),
-    ShutdownRequest(HashMap<String, String>),
+    ShutdownRequest(ShutdownContent),
 }
 
 #[cfg(test)]
@@ -517,7 +514,7 @@ mod tests {
         let package: PackageShutdownRequest = serde_json::from_str(json).unwrap();
 
         assert_eq!(package.package_type, PackageType::ShutdownRequest);
-        assert!(package.content.is_empty());
+        assert!(package.content == ShutdownContent{});
     }
 
     #[test]

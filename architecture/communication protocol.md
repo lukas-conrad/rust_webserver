@@ -44,11 +44,11 @@ The Plugin responds with a response code. Response codes could be:
 
 ```json
 {
-	"packageType": "handshakeResponse",
-	"content": {
-		"responseCode": 1,
-		"responseCodeText": "Plugin initialization error"
-	}
+  "packageType": "handshakeResponse",
+  "content": {
+    "responseCode": 1,
+    "responseCodeText": "Plugin initialization error"
+  }
 }
 ```
 

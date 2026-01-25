@@ -1,4 +1,4 @@
-use crate::plugin_old::models::{HttpHeader, HttpRequest};
+use crate::plugin_communication::models::{HttpHeader, HttpRequest};
 use crate::webserver::webserver::{CallbackFn, ServerError, Webserver};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -178,7 +178,7 @@ impl Service<Request<Incoming>> for Http1Server {
 
 #[cfg(test)]
 mod tests {
-    use crate::plugin_old::models::{HttpRequest, HttpResponse};
+    use crate::plugin_communication::models::{HttpRequest, HttpResponse};
     use crate::webserver::http_1_server::Http1Server;
     use crate::webserver::webserver::Webserver;
     use base64::prelude::BASE64_STANDARD;

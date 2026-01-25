@@ -1,5 +1,6 @@
 use crate::io::data_storage::FSBinding;
 use crate::plugin::plugin_entry::PluginEntry;
+use crate::plugin::plugin_manager::PluginError;
 use crate::plugin_communication::app_starter::default_program_controller::DefaultProgramController;
 use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
 use async_trait::async_trait;
@@ -21,7 +22,10 @@ impl DefaultPluginStarter {
 
 #[async_trait]
 impl PluginStarter for DefaultPluginStarter {
-    async fn start_app(&self, entry: &PluginEntry) -> Result<Box<dyn ProgramController>, Error> {
+    async fn start_app(
+        &self,
+        entry: &PluginEntry,
+    ) -> Result<Box<dyn ProgramController>, PluginError> {
         let dir = entry.path.parent().unwrap();
 
         info!(
@@ -38,7 +42,8 @@ impl PluginStarter for DefaultPluginStarter {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
-            .spawn()?;
+            .spawn()
+            .map_err(|e| PluginError::PluginStartError(e.to_string()))?;
 
         #[cfg(not(target_os = "windows"))]
         let process = Command::new("sh")
@@ -49,7 +54,8 @@ impl PluginStarter for DefaultPluginStarter {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
-            .spawn()?;
+            .spawn()
+            .map_err(|e| PluginError::PluginStartError(e.to_string()))?;
 
         Ok(Box::new(DefaultProgramController::new(process)))
     }

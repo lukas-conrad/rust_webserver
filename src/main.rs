@@ -11,15 +11,11 @@ use std::{env, error};
 use std::process::exit;
 use tokio::fs;
 
-mod control_system;
-mod plugin_old;
 mod webserver;
 
 mod io;
 mod plugin;
 mod plugin_communication;
-mod webserver_old;
-
 use crate::plugin::plugin_manager::{PluginManager, RequestHandler};
 use crate::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
 use crate::webserver::http_1_server::Http1Server;

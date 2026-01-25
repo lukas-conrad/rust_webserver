@@ -1,7 +1,7 @@
 use crate::plugin::plugin_entry::PluginEntry;
+use crate::plugin::plugin_manager::PluginError;
 use crate::plugin::test_plugin::TestPlugin;
 use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
-use crate::plugin_old::interfaces::PluginError;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
@@ -80,15 +80,17 @@ impl TestPluginStarter {
 }
 #[async_trait]
 impl PluginStarter for TestPluginStarter {
-    async fn start_app(&self, entry: &PluginEntry) -> Result<Box<dyn ProgramController>, Error> {
+    async fn start_app(
+        &self,
+        entry: &PluginEntry,
+    ) -> Result<Box<dyn ProgramController>, PluginError> {
         let startup_command = &entry.config.startup_command;
         let plugin = self.plugins.get(startup_command);
         if let Some(starter) = plugin {
             Ok(starter().await)
         } else {
-            Err(Error::new(
-                ErrorKind::InvalidData,
-                PluginError::StartupFailed("Could not find plugin to start".to_string()),
+            Err(PluginError::PluginStartError(
+                "Could not find plugin to start".to_string(),
             ))
         }
     }

@@ -3,13 +3,14 @@ use std::process::ExitStatus;
 use crate::plugin::plugin_entry::PluginEntry;
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
+use crate::plugin::plugin_manager::PluginError;
 
 #[async_trait]
 pub trait PluginStarter: Send + Sync {
     async fn start_app(
         &self,
         entry: &PluginEntry,
-    ) -> Result<Box<dyn ProgramController>, Error>;
+    ) -> Result<Box<dyn ProgramController>, PluginError>;
 }
 
 #[async_trait]

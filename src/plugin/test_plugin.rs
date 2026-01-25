@@ -1,13 +1,12 @@
 use crate::plugin_communication::plugin_communicator::{
     CommunicationError, Filter, JsonCommunicator, PluginCommunicator,
 };
-use crate::plugin_old::models::Package::{HandshakeResponse, NormalResponse};
-use crate::plugin_old::models::{
+use crate::plugin_communication::models::Package::{HandshakeResponse, NormalResponse};
+use crate::plugin_communication::models::{
     HandshakeResponseContent, HttpResponse, NormalResponseContent, Package,
 };
 use futures::FutureExt;
 use std::sync::Arc;
-use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 

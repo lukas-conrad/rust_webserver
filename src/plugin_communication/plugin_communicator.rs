@@ -1,6 +1,6 @@
 use crate::plugin_communication::package_handler::PackageHandler;
 use crate::plugin_communication::plugin_communicator::CommunicationError::SendingFailed;
-use crate::plugin_old::models::Package;
+use crate::plugin_communication::models::Package;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -131,7 +131,7 @@ impl PluginCommunicator for JsonCommunicator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plugin_old::models::{LogContent, Package};
+    use crate::plugin_communication::models::{LogContent, Package};
     use tokio::io::duplex;
     use tokio::time::{sleep, timeout, Duration};
 

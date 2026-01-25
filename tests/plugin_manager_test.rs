@@ -8,7 +8,7 @@ use rust_webserver::plugin_communication::app_starter::plugin_starter::ProgramCo
 use rust_webserver::plugin_communication::app_starter::test_plugin_starter::{
     TestPluginProgramController, TestPluginStarter,
 };
-use rust_webserver::plugin_old::models::{HttpRequest, RequestInformation};
+use rust_webserver::plugin_communication::models::{HttpRequest, RequestInformation};
 use std::path::Path;
 
 #[tokio::test]

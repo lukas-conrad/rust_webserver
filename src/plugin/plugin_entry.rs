@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn test_match_count_exact_match() {
         use crate::plugin::plugin_config::{PluginConfig, ProtocolEnum};
-        use crate::plugin_old::models::RequestInformation;
+        use crate::plugin_communication::models::RequestInformation;
         use std::path::PathBuf;
 
         // Create a plugin config with exact matches
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     fn test_match_count_with_wildcards() {
         use crate::plugin::plugin_config::{PluginConfig, ProtocolEnum};
-        use crate::plugin_old::models::RequestInformation;
+        use crate::plugin_communication::models::RequestInformation;
         use std::path::PathBuf;
 
         // Create a plugin config with wildcards

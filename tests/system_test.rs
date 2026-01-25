@@ -4,7 +4,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::Request;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
-use rust_webserver::plugin_old::models::RequestInformation;
+use rust_webserver::plugin_communication::models::RequestInformation;
 use std::env;
 use std::net::TcpListener;
 use std::process::Command;

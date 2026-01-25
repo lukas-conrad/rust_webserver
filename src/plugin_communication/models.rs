@@ -1,5 +1,4 @@
 use crate::plugin_communication::plugin_communicator::Filter;
-use crate::control_system::models::CommandRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::{Display, EnumString};
@@ -203,8 +202,6 @@ package! {
     NormalRequest(NormalRequestContent),
     NormalResponse(NormalResponseContent),
     Error(ErrorReportContent),
-    CliRequest(CommandRequest),
-    CliResponse(CliResponseContent),
     Log(LogContent),
     ShutdownRequest(HashMap<String, String>),
 }

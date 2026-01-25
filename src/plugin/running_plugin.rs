@@ -7,7 +7,7 @@ use crate::plugin_communication::plugin_communicator::{
     CommunicationError, Filter, Listener, PluginCommunicator,
 };
 use crate::plugin_communication::protocols::protocol::{Protocol, ProtocolError};
-use crate::plugin_old::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
+use crate::plugin_communication::models::{HandshakeRequestContent, Package, PackageHandshakeResponse};
 use log::{debug, error, info};
 use std::time::Duration;
 use tokio::sync::Mutex;

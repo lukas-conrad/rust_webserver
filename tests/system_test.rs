@@ -7,8 +7,8 @@ use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin_communication::models::RequestInformation;
 use std::env;
 use std::net::TcpListener;
-use std::process::Command;
 use std::process::Stdio;
+use std::process::{Command, ExitStatus};
 use tempfile::TempDir;
 use test_utils::{check_server_running, print_stdio, response_to_string, setup_sender};
 use tokio::fs;
@@ -169,13 +169,26 @@ async fn system_test() {
     );
 
     // Stop the server
-    server_process
-        .kill()
-        .expect("Failed to kill server process");
+    #[cfg(windows)]
+    {
+        let pid = server_process.id();
+        Command::new("taskkill")
+            .args(&["/F", "/T", "/PID", &pid.to_string()])
+            .output()
+            .expect("Failed to execute taskkill");
+    }
 
-    server_process
+    #[cfg(not(windows))]
+    {
+        server_process.kill().expect("Failed to kill server");
+    }
+
+    let result = server_process
         .wait()
         .expect("Failed to wait for server process");
+
+    #[cfg(not(windows))]
+    assert_eq!(result.code().unwrap(), 0, "Expected clean exit");
 
     // Abort the logging tasks
     drop(stdout_task);

@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use std::{env, error};
+use std::time::Duration;
 use tokio::fs;
+use tokio::time::sleep;
 
 mod webserver;
 
@@ -101,10 +103,14 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
             plugin_manager.stop_plugins().await;
 
             info!("All Plugins stopped");
+            exit(0);
         }
         Err(err) => {
             error!("Error when waiting for the Shutdown-Signal: {}", err);
         }
     }
-    Ok(())
+
+    sleep(Duration::from_secs(2)).await;
+
+    exit(0);
 }

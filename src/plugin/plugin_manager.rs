@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use log::{debug, error, info};
 use std::path::Path;
 use strum::Display;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 #[derive(Display, Debug)]
 pub enum PluginError {
@@ -72,6 +72,19 @@ impl PluginManager {
         self.plugins.lock().await.push(running_plugin);
 
         Ok(())
+    }
+
+    pub async fn stop_plugins(&self) {
+        let mut plugins: MutexGuard<Vec<RunningPlugin>> = self.plugins.lock().await;
+        let stop_futures = plugins.iter_mut().map(|plugin| async move {
+            if let Err(e) = plugin.stop_plugin().await {
+                error!(
+                    "Error when stopping plugin {}: {}",
+                    plugin.entry.config.plugin_name, e
+                );
+            }
+        });
+        futures::future::join_all(stop_futures).await;
     }
 
     pub async fn scan_plugins(&mut self, plugins_path: &Path) -> Result<(), PluginError> {

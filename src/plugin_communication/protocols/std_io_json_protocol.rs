@@ -1,3 +1,4 @@
+use std::process::ExitStatus;
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
 use crate::plugin_communication::plugin_communicator::{JsonCommunicator, PluginCommunicator};
@@ -40,10 +41,22 @@ impl Protocol for StdIoJsonProtocol {
     }
 
     async fn stop(&mut self) -> Result<(), ProtocolError> {
-        // TODO: do not just end the app, send stop package
         if let Some(ref mut controller) = self.process {
             controller
                 .shutdown()
+                .await
+                .map_err(|e| ProtocolError::StopError(e.to_string()))
+        } else {
+            Err(ProtocolError::StopError(
+                "controller is not set".to_string(),
+            ))
+        }
+    }
+
+    async fn wait(&mut self) -> Result<ExitStatus, ProtocolError> {
+        if let Some(ref mut controller) = self.process {
+            controller
+                .wait()
                 .await
                 .map_err(|e| ProtocolError::StopError(e.to_string()))
         } else {

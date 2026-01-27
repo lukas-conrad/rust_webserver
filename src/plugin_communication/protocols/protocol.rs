@@ -1,3 +1,4 @@
+use std::process::ExitStatus;
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
 use crate::plugin_communication::plugin_communicator::PluginCommunicator;
@@ -19,4 +20,6 @@ pub trait Protocol: Send {
     ) -> Result<Box<dyn PluginCommunicator>, ProtocolError>;
 
     async fn stop(&mut self) -> Result<(), ProtocolError>;
+    
+    async fn wait(&mut self) -> Result<ExitStatus, ProtocolError>;
 }

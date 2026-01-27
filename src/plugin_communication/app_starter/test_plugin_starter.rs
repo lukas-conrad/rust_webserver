@@ -20,7 +20,7 @@ impl TestPluginProgramController {
         let (plugin_read, plugin_write) = tokio::io::split(client);
         let (server_read, server_write) = tokio::io::split(server);
 
-        TestPlugin::new(Box::new(plugin_read), Box::new(plugin_write)).await;
+        TestPlugin::new(Box::new(plugin_read), Box::new(plugin_write), None).await;
 
         Self {
             stdout: Some(Box::new(server_read)),

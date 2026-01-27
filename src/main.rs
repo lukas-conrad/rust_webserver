@@ -6,9 +6,9 @@ use futures::FutureExt;
 use log::{debug, error, info};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::sync::Arc;
 use std::{env, error};
-use std::process::exit;
 use tokio::fs;
 
 mod webserver;
@@ -61,6 +61,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         .scan_plugins(Path::new("plugins"))
         .await
         .unwrap();
+
     for entry in &plugin_manager.plugin_entries {
         let result = plugin_manager.start_plugin(entry).await;
         match result {
@@ -74,15 +75,17 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    let plugin_manager: Arc<dyn RequestHandler> = Arc::new(plugin_manager);
+    let plugin_manager = Arc::new(plugin_manager);
 
-    let server = Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port)).await;
+    let server =
+        Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port)).await;
+    let plugin_manager_clone = plugin_manager.clone();
     match server {
         Ok(server) => {
             server.set_listener(Box::new(move |request| {
                 debug!("Received package {:?}", request);
-                let plugin_manager = plugin_manager.clone();
-                async move { plugin_manager.clone().route_request(request).await }.boxed()
+                let plugin_manager_clone = plugin_manager_clone.clone();
+                async move { plugin_manager_clone.clone().route_request(request).await }.boxed()
             }));
         }
         Err(e) => {
@@ -91,7 +94,17 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    std::future::pending::<()>().await;
+    match tokio::signal::ctrl_c().await {
+        Ok(()) => {
+            info!("Stopping all plugins");
 
-    exit(0);
+            plugin_manager.stop_plugins().await;
+
+            info!("All Plugins stopped");
+        }
+        Err(err) => {
+            error!("Error when waiting for the Shutdown-Signal: {}", err);
+        }
+    }
+    Ok(())
 }

@@ -110,7 +110,5 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     }
 
-    sleep(Duration::from_secs(2)).await;
-
-    exit(0);
+    Ok(())
 }

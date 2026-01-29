@@ -1,6 +1,6 @@
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError;
-use crate::plugin::test_plugin::TestPlugin;
+use crate::plugin::test_plugin::{PackageListener, TestPlugin};
 use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
@@ -15,12 +15,12 @@ pub struct TestPluginProgramController {
 }
 
 impl TestPluginProgramController {
-    pub async fn new() -> Self {
+    pub async fn new(listener: Option<PackageListener>) -> Self {
         let (client, server) = duplex(1024);
         let (plugin_read, plugin_write) = tokio::io::split(client);
         let (server_read, server_write) = tokio::io::split(server);
 
-        TestPlugin::new(Box::new(plugin_read), Box::new(plugin_write), None).await;
+        TestPlugin::new(Box::new(plugin_read), Box::new(plugin_write), listener).await;
 
         Self {
             stdout: Some(Box::new(server_read)),

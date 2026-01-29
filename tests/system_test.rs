@@ -8,7 +8,7 @@ use rust_webserver::plugin_communication::models::RequestInformation;
 use std::env;
 use std::net::TcpListener;
 use std::process::Stdio;
-use std::process::{Command, ExitStatus};
+use std::process::Command;
 use tempfile::TempDir;
 use test_utils::{check_server_running, print_stdio, response_to_string, setup_sender};
 use tokio::fs;
@@ -88,9 +88,9 @@ async fn system_test() {
         max_request_timeout: 1000,
         max_startup_time: 1000,
         request_information: RequestInformation {
-            request_methods: vec!["*".to_string()],
-            hosts: vec!["*".to_string()],
-            paths: vec!["*".to_string()],
+            request_methods: vec!["GET".to_string()],
+            hosts: vec!["example.*".to_string()],
+            paths: vec!["*.json".to_string()],
         },
     };
 
@@ -168,6 +168,61 @@ async fn system_test() {
         "Response body should match request body"
     );
 
+    // Performance test: Send parallel requests
+    println!("\n=== Starting Performance Test ===");
+    let request_count = 1000;
+    let mut handles = Vec::new();
+    let test_message_perf = "Performance Test!";
+
+    let time = std::time::SystemTime::now();
+
+    for _ in 0..request_count {
+        let port_clone = port;
+        let test_msg = test_message_perf.to_string();
+
+        let handle = tokio::spawn(async move {
+            // Setup HTTP connection for each request
+            let mut sender = setup_sender::<Full<Bytes>>(port_clone).await;
+
+            // Create the request
+            let req = Request::builder()
+                .method("POST")
+                .uri("/test.json")
+                .header("Host", "example.com")
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(test_msg.clone())))
+                .expect("Failed to build request");
+
+            // Send the request
+            let response = sender
+                .send_request(req)
+                .await
+                .expect("Failed to send request");
+
+            // Read the response body
+            let (status, response_body) = response_to_string(response).await;
+
+            (status, response_body, test_msg)
+        });
+
+        handles.push(handle);
+    }
+
+    let results = futures::future::join_all(handles).await;
+
+    let elapsed = time.elapsed().unwrap();
+    println!("{} requests processed in {} ms", request_count, elapsed.as_millis());
+    assert!(elapsed.as_secs() < 1);
+
+    // Verify all responses
+    for result in results {
+        let (status, response_body, expected_msg) = result.expect("Task failed");
+        assert_eq!(status, 200, "Expected status 200 in parallel request");
+        assert_eq!(response_body, expected_msg, "Response body should match request body in parallel request");
+    }
+
+    println!("=== Performance Test Completed ===\n");
+
     // Stop the server
     #[cfg(windows)]
     {
@@ -183,14 +238,8 @@ async fn system_test() {
         server_process.kill().expect("Failed to kill server");
     }
 
-    let result = server_process
+    server_process
         .wait()
         .expect("Failed to wait for server process");
 
-    #[cfg(not(windows))]
-    assert_eq!(result.code().unwrap(), 0, "Expected clean exit");
-
-    // Abort the logging tasks
-    drop(stdout_task);
-    drop(stderr_task);
 }

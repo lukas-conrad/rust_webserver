@@ -12,7 +12,7 @@ async fn main() {
         Box::new(|package| {
             async move {
                 match package {
-                    Package::ShutdownRequest(request) => {
+                    Package::ShutdownRequest(_) => {
                         exit(0);
                     }
                     _ => None,

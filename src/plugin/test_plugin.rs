@@ -8,8 +8,9 @@ use crate::plugin_communication::plugin_communicator::{
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 /// Configuration for handshake response
 #[derive(Debug, Clone)]
@@ -39,14 +40,14 @@ pub type PackageListener =
 
 pub struct TestPlugin {
     communicator: Arc<Mutex<Box<dyn PluginCommunicator>>>,
-    listener: Arc<Mutex<Option<PackageListener>>>,
+    listener: Arc<RwLock<Option<PackageListener>>>,
 }
 
 impl TestPlugin {
     pub async fn new(
         read: Box<dyn AsyncRead + Unpin + Send>,
         write: Box<dyn AsyncWrite + Unpin + Send>,
-        listener: Option<PackageListener>
+        listener: Option<PackageListener>,
     ) -> Self {
         Self::new_with_config(read, write, HandshakeConfig::success(), listener).await
     }
@@ -55,12 +56,12 @@ impl TestPlugin {
         read: Box<dyn AsyncRead + Unpin + Send>,
         write: Box<dyn AsyncWrite + Unpin + Send>,
         handshake_config: HandshakeConfig,
-        listener: Option<PackageListener>
+        listener: Option<PackageListener>,
     ) -> Self {
         let communicator: Arc<Mutex<Box<dyn PluginCommunicator>>> =
             Arc::new(Mutex::new(Box::new(JsonCommunicator::new(read, write))));
 
-        let listener = Arc::new(Mutex::new(listener));
+        let listener = Arc::new(RwLock::new(listener));
 
         let communicator_clone = communicator.clone();
         let listener_clone = listener.clone();
@@ -71,8 +72,8 @@ impl TestPlugin {
                 let communicator_clone = communicator_clone.clone();
                 let listener_clone = listener_clone.clone();
                 let handshake_config = handshake_config.clone();
-                async move {
-                    let guard = listener_clone.lock().await;
+                tokio::spawn(async move {
+                    let guard = listener_clone.read().await;
                     let listener_option = guard.as_ref();
                     let response = match listener_option {
                         Some(listener) => listener(&package).await,
@@ -90,8 +91,9 @@ impl TestPlugin {
                     }
 
                     Self::default_response(package, communicator_clone, handshake_config).await;
-                }
-                .boxed()
+
+                });
+                async {}.boxed()
             }))
             .await;
 
@@ -101,7 +103,11 @@ impl TestPlugin {
         }
     }
 
-    async fn default_response(package: Package, communicator_clone: Arc<Mutex<Box<dyn PluginCommunicator>>>, handshake_config: HandshakeConfig) {
+    async fn default_response(
+        package: Package,
+        communicator_clone: Arc<Mutex<Box<dyn PluginCommunicator>>>,
+        handshake_config: HandshakeConfig,
+    ) {
         match package {
             Package::HandshakeRequest(_) => {
                 communicator_clone
@@ -140,7 +146,7 @@ impl TestPlugin {
     }
 
     pub async fn set_listener(&self, listener: PackageListener) {
-        let _ = self.listener.lock().await.insert(listener);
+        let _ = self.listener.write().await.insert(listener);
     }
 
     pub async fn send_package(

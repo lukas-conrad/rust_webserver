@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use log::{debug, error, info};
 use std::path::Path;
 use strum::Display;
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 #[derive(Display, Debug)]
 pub enum PluginError {
@@ -27,7 +27,7 @@ pub trait RequestHandler: Send + Sync {
     async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError>;
 }
 pub struct PluginManager {
-    pub plugins: Mutex<Vec<RunningPlugin>>,
+    pub plugins: RwLock<Vec<RunningPlugin>>,
     pub plugin_entries: Vec<PluginEntry>,
     data_storage: Mutex<Box<dyn DataStorage>>,
     plugin_starter: Box<dyn PluginStarter>,
@@ -35,7 +35,7 @@ pub struct PluginManager {
 impl PluginManager {
     pub fn new(data_storage: Box<dyn DataStorage>, plugin_starter: Box<dyn PluginStarter>) -> Self {
         Self {
-            plugins: Mutex::new(vec![]),
+            plugins: RwLock::new(vec![]),
             plugin_entries: vec![],
             data_storage: Mutex::new(data_storage),
             plugin_starter,
@@ -69,13 +69,13 @@ impl PluginManager {
         let running_plugin =
             RunningPlugin::start_plugin(plugin_entry, &self.plugin_starter).await?;
 
-        self.plugins.lock().await.push(running_plugin);
+        self.plugins.write().await.push(running_plugin);
 
         Ok(())
     }
 
     pub async fn stop_plugins(&self) {
-        let mut plugins: MutexGuard<Vec<RunningPlugin>> = self.plugins.lock().await;
+        let mut plugins: RwLockWriteGuard<Vec<RunningPlugin>> = self.plugins.write().await;
         let stop_futures = plugins.iter_mut().map(|plugin| async move {
             if let Err(e) = plugin.stop_plugin().await {
                 error!(
@@ -137,8 +137,12 @@ impl PluginManager {
 #[async_trait]
 impl RequestHandler for PluginManager {
     async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError> {
-        let running_plugins = self.plugins.lock().await;
+        // TODO: lock is held until response is received. This could lead long delays
+        // TODO: when a write() is waiting for the lock
+
+        let running_plugins = self.plugins.read().await;
         let plugin = Self::find_plugin_for_request(&*running_plugins, &request);
+
 
         let plugin = plugin.ok_or(PluginNotFoundError(
             "Could not find any plugin to match this request".to_string(),

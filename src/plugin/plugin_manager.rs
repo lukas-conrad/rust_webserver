@@ -99,7 +99,7 @@ impl PluginManager {
         let mut plugin_entries: Vec<PluginEntry> = vec![];
         debug!("Searching in {} files", plugin_entries.len());
         for file in files {
-            if file.file_name().unwrap() == "plugin_config.json" {
+            if file.file_name().unwrap() == "pluginConfig.json" {
                 info!("Found Plugin Config at {:?}", file.to_str());
                 let config = async {
                     let data = self

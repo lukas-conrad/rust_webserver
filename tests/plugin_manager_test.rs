@@ -28,7 +28,7 @@ async fn plugin_manager_test() {
     storage
         .store_data(
             serde_json::to_vec(&config).unwrap(),
-            Path::new("plugins/test_plugin/plugin_config.json"),
+            Path::new("plugins/test_plugin/pluginConfig.json"),
         )
         .await
         .unwrap();
@@ -84,7 +84,7 @@ async fn test_parallel_requests() {
     storage
         .store_data(
             serde_json::to_vec(&config).unwrap(),
-            Path::new("plugins/test_plugin/plugin_config.json"),
+            Path::new("plugins/test_plugin/pluginConfig.json"),
         )
         .await
         .unwrap();

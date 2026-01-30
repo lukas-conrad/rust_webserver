@@ -95,7 +95,7 @@ async fn system_test() {
     };
 
     fs::write(
-        &plugin_dir.join("plugin_config.json"),
+        &plugin_dir.join("pluginConfig.json"),
         &serde_json::to_vec(&config).unwrap(),
     )
     .await

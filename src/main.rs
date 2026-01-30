@@ -80,7 +80,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     let plugin_manager = Arc::new(plugin_manager);
 
     let server =
-        Http1Server::start(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port)).await;
+        Http1Server::start(SocketAddr::from(([0, 0, 0, 0], args.port))).await;
     let plugin_manager_clone = plugin_manager.clone();
     match server {
         Ok(server) => {

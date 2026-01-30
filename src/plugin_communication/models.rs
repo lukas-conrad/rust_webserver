@@ -67,7 +67,7 @@ pub struct HandshakeRequestContent {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct HandshakeResponseContent {
-    pub response_code: u32,
+    pub response_code: i32,
     pub response_code_text: String,
 }
 

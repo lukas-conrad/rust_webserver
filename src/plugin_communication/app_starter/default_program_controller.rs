@@ -3,58 +3,75 @@ use async_trait::async_trait;
 use std::io::{Error, ErrorKind};
 use std::process::ExitStatus;
 use tokio::process::Child;
+use tokio::sync::Mutex;
 
 pub struct DefaultProgramController {
-    process: Child,
+    process: Mutex<Child>,
 }
 
 impl DefaultProgramController {
     pub fn new(process: Child) -> Self {
-        Self { process }
+        Self {
+            process: Mutex::new(process),
+        }
     }
 }
 
 #[async_trait]
 impl ProgramController for DefaultProgramController {
-    fn get_stdin(&mut self) -> Result<Box<dyn tokio::io::AsyncWrite + Unpin + Send + Sync>, Error> {
+    async fn get_stdin(
+        &self,
+    ) -> Result<Box<dyn tokio::io::AsyncWrite + Unpin + Send + Sync>, Error> {
         let stdin = self
             .process
+            .lock()
+            .await
             .stdin
             .take()
             .ok_or_else(|| Error::new(ErrorKind::Other, "Could not extract stdin"))?;
         Ok(Box::new(stdin))
     }
 
-    fn get_stdout(&mut self) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send + Sync>, Error> {
+    async fn get_stdout(
+        &self,
+    ) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send + Sync>, Error> {
         let stdout = self
             .process
+            .lock()
+            .await
             .stdout
             .take()
             .ok_or_else(|| Error::new(ErrorKind::Other, "Could not extract stdout"))?;
         Ok(Box::new(stdout))
     }
 
-    fn get_stderr(&mut self) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send + Sync>, Error> {
+    async fn get_stderr(
+        &self,
+    ) -> Result<Box<dyn tokio::io::AsyncRead + Unpin + Send + Sync>, Error> {
         let stderr = self
             .process
+            .lock()
+            .await
             .stderr
             .take()
             .ok_or_else(|| Error::new(ErrorKind::Other, "Could not extract stdout"))?;
         Ok(Box::new(stderr))
     }
 
-    fn is_running(&mut self) -> bool {
-        self.process.try_wait()
+    async fn is_running(&self) -> bool {
+        self.process
+            .lock()
+            .await
+            .try_wait()
             .map(|status| status.is_none())
             .unwrap_or(false)
     }
 
-    async fn shutdown(&mut self) -> Result<(), Error> {
-        self.process.kill().await
+    async fn shutdown(&self) -> Result<(), Error> {
+        self.process.lock().await.kill().await
     }
 
-    async fn wait(&mut self) -> Result<ExitStatus, Error> {
-        self.process.wait().await
+    async fn wait(&self) -> Result<ExitStatus, Error> {
+        self.process.lock().await.wait().await
     }
-
 }

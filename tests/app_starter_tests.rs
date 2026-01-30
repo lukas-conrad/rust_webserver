@@ -74,8 +74,8 @@ async fn test_start_app_success() {
     let result = starter.start_app(&entry).await;
     assert!(result.is_ok(), "Failed to start app: {:?}", result.err());
 
-    let mut controller = result.unwrap();
-    assert!(controller.is_running(), "App should be running after start");
+    let controller = result.unwrap();
+    assert!(controller.is_running().await, "App should be running after start");
 
     // Clean up
     let _ = controller.shutdown().await;
@@ -93,8 +93,8 @@ async fn test_controller_stdin_stdout() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // Get stdin and stdout
-    let mut stdin = controller.get_stdin().unwrap();
-    let stdout = controller.get_stdout().unwrap();
+    let mut stdin = controller.get_stdin().await.unwrap();
+    let stdout = controller.get_stdout().await.unwrap();
     let mut reader = BufReader::new(stdout);
 
     // Write to stdin
@@ -126,7 +126,7 @@ async fn test_controller_stderr() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // Get stderr
-    let stderr = controller.get_stderr().unwrap();
+    let stderr = controller.get_stderr().await.unwrap();
     let mut reader = BufReader::new(stderr);
 
     // Read from stderr
@@ -169,7 +169,7 @@ async fn test_controller_is_running() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // Should be running
-    assert!(controller.is_running(), "Process should be running");
+    assert!(controller.is_running().await, "Process should be running");
 
     // Shutdown the process
     controller.shutdown().await.unwrap();
@@ -178,7 +178,7 @@ async fn test_controller_is_running() {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Should not be running anymore
-    assert!(!controller.is_running(), "Process should have stopped");
+    assert!(!controller.is_running().await, "Process should have stopped");
 }
 
 #[tokio::test]
@@ -192,7 +192,7 @@ async fn test_controller_shutdown() {
 
     let mut controller = starter.start_app(&entry).await.unwrap();
 
-    assert!(controller.is_running(), "Process should be running");
+    assert!(controller.is_running().await, "Process should be running");
 
     // Shutdown the process
     let result = controller.shutdown().await;
@@ -202,7 +202,7 @@ async fn test_controller_shutdown() {
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
     // Process should not be running
-    assert!(!controller.is_running(), "Process should have been killed");
+    assert!(!controller.is_running().await, "Process should have been killed");
 }
 
 #[tokio::test]
@@ -223,7 +223,7 @@ async fn test_controller_wait() {
     assert_eq!(status.code(), Some(5));
 
     // Should not be running anymore
-    assert!(!controller.is_running(), "Process should have completed");
+    assert!(!controller.is_running().await, "Process should have completed");
 }
 
 #[tokio::test]
@@ -238,11 +238,11 @@ async fn test_controller_get_stdin_twice_fails() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // First call should succeed
-    let stdin1 = controller.get_stdin();
+    let stdin1 = controller.get_stdin().await;
     assert!(stdin1.is_ok(), "First get_stdin should succeed");
 
     // Second call should fail because stdin was already taken
-    let stdin2 = controller.get_stdin();
+    let stdin2 = controller.get_stdin().await;
     assert!(stdin2.is_err(), "Second get_stdin should fail");
 
     // Clean up
@@ -262,11 +262,11 @@ async fn test_controller_get_stdout_twice_fails() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // First call should succeed
-    let stdout1 = controller.get_stdout();
+    let stdout1 = controller.get_stdout().await;
     assert!(stdout1.is_ok(), "First get_stdout should succeed");
 
     // Second call should fail because stdout was already taken
-    let stdout2 = controller.get_stdout();
+    let stdout2 = controller.get_stdout().await;
     assert!(stdout2.is_err(), "Second get_stdout should fail");
 
     // Clean up
@@ -286,11 +286,11 @@ async fn test_controller_get_stderr_twice_fails() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // First call should succeed
-    let stderr1 = controller.get_stderr();
+    let stderr1 = controller.get_stderr().await;
     assert!(stderr1.is_ok(), "First get_stderr should succeed");
 
     // Second call should fail because stderr was already taken
-    let stderr2 = controller.get_stderr();
+    let stderr2 = controller.get_stderr().await;
     assert!(stderr2.is_err(), "Second get_stderr should fail");
 
     // Clean up
@@ -313,14 +313,14 @@ async fn test_multiple_commands_combined() {
     let mut controller = starter.start_app(&entry).await.unwrap();
 
     // Read stderr message
-    let stderr = controller.get_stderr().unwrap();
+    let stderr = controller.get_stderr().await.unwrap();
     let mut reader = BufReader::new(stderr);
     let mut stderr_msg = String::new();
     reader.read_line(&mut stderr_msg).await.unwrap();
     assert_eq!(stderr_msg.trim(), "Starting");
 
     // Should be running during sleep
-    assert!(controller.is_running(), "Should be running during sleep");
+    assert!(controller.is_running().await, "Should be running during sleep");
 
     // Wait for completion
     let status = controller.wait().await.unwrap();

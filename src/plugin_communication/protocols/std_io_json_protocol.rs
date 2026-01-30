@@ -29,10 +29,10 @@ impl Protocol for StdIoJsonProtocol {
 
         let read = controller
             .get_stdout()
-            .map_err(|e| ProtocolError::StartupError(e.to_string()))?;
+            .await.map_err(|e| ProtocolError::StartupError(e.to_string()))?;
         let write = controller
             .get_stdin()
-            .map_err(|e| ProtocolError::StartupError(e.to_string()))?;
+            .await.map_err(|e| ProtocolError::StartupError(e.to_string()))?;
         let communicator = JsonCommunicator::new(read, write);
 
         self.process = Some(controller);

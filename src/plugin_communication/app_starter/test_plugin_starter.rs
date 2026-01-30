@@ -8,10 +8,11 @@ use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 use std::process::ExitStatus;
 use tokio::io::{duplex, AsyncRead, AsyncWrite};
+use tokio::sync::Mutex;
 
 pub struct TestPluginProgramController {
-    stdin: Option<Box<dyn AsyncWrite + Unpin + Send + Sync>>,
-    stdout: Option<Box<dyn AsyncRead + Unpin + Send + Sync>>,
+    stdin: Mutex<Option<Box<dyn AsyncWrite + Unpin + Send + Sync>>>,
+    stdout: Mutex<Option<Box<dyn AsyncRead + Unpin + Send + Sync>>>,
 }
 
 impl TestPluginProgramController {
@@ -23,35 +24,35 @@ impl TestPluginProgramController {
         TestPlugin::new(Box::new(plugin_read), Box::new(plugin_write), listener).await;
 
         Self {
-            stdout: Some(Box::new(server_read)),
-            stdin: Some(Box::new(server_write)),
+            stdout: Mutex::new(Some(Box::new(server_read))),
+            stdin: Mutex::new(Some(Box::new(server_write))),
         }
     }
 }
 
 #[async_trait]
 impl ProgramController for TestPluginProgramController {
-    fn get_stdin(&mut self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error> {
-        Ok(self.stdin.take().unwrap())
+    async fn get_stdin(&self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error> {
+        Ok(self.stdin.lock().await.take().unwrap())
     }
 
-    fn get_stdout(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error> {
-        Ok(self.stdout.take().unwrap())
+    async fn get_stdout(&self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error> {
+        Ok(self.stdout.lock().await.take().unwrap())
     }
 
-    fn get_stderr(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error> {
+    async fn get_stderr(&self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error> {
         panic!("Not implemented")
     }
 
-    fn is_running(&mut self) -> bool {
+    async fn is_running(&self) -> bool {
         panic!("Not implemented")
     }
 
-    async fn shutdown(&mut self) -> Result<(), Error> {
+    async fn shutdown(&self) -> Result<(), Error> {
         panic!("Not implemented")
     }
 
-    async fn wait(&mut self) -> Result<ExitStatus, Error> {
+    async fn wait(&self) -> Result<ExitStatus, Error> {
         panic!("Not implemented")
     }
 }

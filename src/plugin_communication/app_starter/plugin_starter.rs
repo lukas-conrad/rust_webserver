@@ -1,9 +1,9 @@
+use crate::plugin::plugin_entry::PluginEntry;
+use crate::plugin::plugin_manager::PluginError;
+use async_trait::async_trait;
 use std::io::Error;
 use std::process::ExitStatus;
-use crate::plugin::plugin_entry::PluginEntry;
-use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
-use crate::plugin::plugin_manager::PluginError;
 
 #[async_trait]
 pub trait PluginStarter: Send + Sync {
@@ -15,13 +15,13 @@ pub trait PluginStarter: Send + Sync {
 
 #[async_trait]
 pub trait ProgramController: Send + Sync {
-    fn get_stdin(&mut self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error>;
-    fn get_stdout(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
-    fn get_stderr(&mut self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
+    async fn get_stdin(&self) -> Result<Box<dyn AsyncWrite + Unpin + Send + Sync>, Error>;
+    async fn get_stdout(&self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
+    async fn get_stderr(&self) -> Result<Box<dyn AsyncRead + Unpin + Send + Sync>, Error>;
 
-    fn is_running(&mut self) -> bool;
+    async fn is_running(&self) -> bool;
 
-    async fn shutdown(&mut self) -> Result<(), Error>;
+    async fn shutdown(&self) -> Result<(), Error>;
 
-    async fn wait(&mut self) -> Result<ExitStatus, Error>;
+    async fn wait(&self) -> Result<ExitStatus, Error>;
 }

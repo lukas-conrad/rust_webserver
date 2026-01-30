@@ -1,4 +1,3 @@
-use std::fmt::format;
 use crate::io::data_storage::DataStorage;
 use crate::plugin::plugin_config::PluginConfig;
 use crate::plugin::plugin_entry::PluginEntry;
@@ -12,10 +11,9 @@ use async_trait::async_trait;
 use log::{debug, error, info};
 use std::path::Path;
 use std::sync::Arc;
-use strum::Display;
 use tokio::sync::{Mutex, RwLock, RwLockWriteGuard};
 
-#[derive(Display, Debug)]
+#[derive(Debug)]
 pub enum PluginError {
     PluginScanError(String),
     PluginStartError(String),
@@ -113,8 +111,8 @@ impl PluginManager {
                     let json = String::from_utf8(data).map_err(|_| {
                         PluginScanError("File could not be loaded as UTF-8".to_string())
                     })?;
-                    serde_json::from_str::<PluginConfig>(&json).map_err(|_| {
-                        PluginScanError("File could not be parsed as JSON".to_string())
+                    serde_json::from_str::<PluginConfig>(&json).map_err(|e| {
+                        PluginScanError(format!("File could not be parsed as JSON: {}", e))
                     })
                 }
                 .await;
@@ -125,7 +123,7 @@ impl PluginManager {
                         plugin_entries.push(PluginEntry::new(config, file));
                     }
                     Err(err) => {
-                        error!("Plugin config could not be loaded ({})", err);
+                        error!("Plugin config could not be loaded ({:?})", err);
                     }
                 }
             }

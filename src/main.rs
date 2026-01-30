@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         match result {
             Err(e) => {
                 error!(
-                    "Error when staring plugin {}. Error: {}",
+                    "Error when staring plugin {}. Error: {:?}",
                     entry.config.plugin_name, e
                 )
             }

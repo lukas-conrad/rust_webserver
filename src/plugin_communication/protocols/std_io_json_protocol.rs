@@ -25,7 +25,7 @@ impl Protocol for StdIoJsonProtocol {
         let controller = plugin_starter
             .start_app(entry)
             .await
-            .map_err(|e| ProtocolError::StartupError(e.to_string()))?;
+            .map_err(|e| ProtocolError::StartupError(format!("{:?}", e)))?;
 
         let read = controller
             .get_stdout()

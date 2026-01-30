@@ -1,7 +1,7 @@
 {
   "pluginName": "FileLoaderPlugin",
   "startupCommand": "./file_plugin",
-  "protocols": ["json"],
+  "protocol": "STD_IO_JSON",
   "maxRequestTimeout": 5000,
   "maxStartupTime": 5000,
   "websitesDirectory": "../../websites",

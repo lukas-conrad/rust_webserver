@@ -117,7 +117,7 @@ impl Service<Request<Incoming>> for Http1Server {
                 let response = listener(request).await.map_err(|err| {
                     ServerError::RequestProcessingError(
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        err.to_string(),
+                        format!("{:?}", err),
                     )
                 })?;
 

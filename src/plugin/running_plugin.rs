@@ -81,7 +81,7 @@ impl RunningPlugin {
                     text = content.response_code_text
                 ));
                 error!(
-                    "Handshake of plugin {} unsuccessful: {}",
+                    "Handshake of plugin {} unsuccessful: {:?}",
                     self.entry.config.plugin_name, error
                 );
                 Err(error)

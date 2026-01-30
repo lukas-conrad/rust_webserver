@@ -1,3 +1,4 @@
+use std::fmt::format;
 use crate::io::data_storage::DataStorage;
 use crate::plugin::plugin_config::PluginConfig;
 use crate::plugin::plugin_entry::PluginEntry;
@@ -108,7 +109,7 @@ impl PluginManager {
                         .await
                         .load_data(&file)
                         .await
-                        .map_err(|_| PluginScanError("File could not be loaded".to_string()))?;
+                        .map_err(|e| PluginScanError(format!("File could not be loaded: {}", e)))?;
                     let json = String::from_utf8(data).map_err(|_| {
                         PluginScanError("File could not be loaded as UTF-8".to_string())
                     })?;

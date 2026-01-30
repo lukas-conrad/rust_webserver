@@ -107,7 +107,7 @@ impl RunningPlugin {
         Ok(())
     }
 
-    pub async fn stop_plugin(&mut self) -> Result<(), ProtocolError> {
+    pub async fn stop_plugin(&self) -> Result<(), ProtocolError> {
         self.communicator
             .send_package(&Package::ShutdownRequest(ShutdownContent {}), None)
             .await

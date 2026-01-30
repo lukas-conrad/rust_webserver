@@ -10,6 +10,7 @@ use crate::plugin_communication::models::{HttpResponse, NormalRequestContent};
 use async_trait::async_trait;
 use log::{debug, error, info};
 use std::path::Path;
+use std::sync::Arc;
 use strum::Display;
 use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
@@ -27,7 +28,7 @@ pub trait RequestHandler: Send + Sync {
     async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError>;
 }
 pub struct PluginManager {
-    pub plugins: RwLock<Vec<RunningPlugin>>,
+    pub plugins: RwLock<Vec<Arc<RunningPlugin>>>,
     pub plugin_entries: Vec<PluginEntry>,
     data_storage: Mutex<Box<dyn DataStorage>>,
     plugin_starter: Box<dyn PluginStarter>,
@@ -43,9 +44,9 @@ impl PluginManager {
     }
 
     pub fn find_plugin_for_request<'a>(
-        plugins: &'a [RunningPlugin],
+        plugins: &'a [Arc<RunningPlugin>],
         request: &HttpRequest,
-    ) -> Option<&'a RunningPlugin> {
+    ) -> Option<&'a Arc<RunningPlugin>> {
         let plugin = plugins
             .iter()
             .map(|plugin| {
@@ -69,13 +70,13 @@ impl PluginManager {
         let running_plugin =
             RunningPlugin::start_plugin(plugin_entry, &self.plugin_starter).await?;
 
-        self.plugins.write().await.push(running_plugin);
+        self.plugins.write().await.push(Arc::new(running_plugin));
 
         Ok(())
     }
 
     pub async fn stop_plugins(&self) {
-        let mut plugins: RwLockWriteGuard<Vec<RunningPlugin>> = self.plugins.write().await;
+        let mut plugins: RwLockWriteGuard<Vec<Arc<RunningPlugin>>> = self.plugins.write().await;
         let stop_futures = plugins.iter_mut().map(|plugin| async move {
             if let Err(e) = plugin.stop_plugin().await {
                 error!(
@@ -137,16 +138,19 @@ impl PluginManager {
 #[async_trait]
 impl RequestHandler for PluginManager {
     async fn route_request(&self, request: HttpRequest) -> Result<HttpResponse, PluginError> {
-        // TODO: lock is held until response is received. This could lead long delays
-        // TODO: when a write() is waiting for the lock
-
         let running_plugins = self.plugins.read().await;
         let plugin = Self::find_plugin_for_request(&*running_plugins, &request);
 
+        let plugin = plugin
+            .ok_or(PluginNotFoundError(
+                "Could not find any plugin to match this request".to_string(),
+            ))?
+            .clone();
 
-        let plugin = plugin.ok_or(PluginNotFoundError(
-            "Could not find any plugin to match this request".to_string(),
-        ))?;
+        // Make sure the lock is not held across the async gap of the request because it can be
+        // quite large (multiple seconds)
+        drop(running_plugins);
+
         let package_id = rand::random();
 
         let request = NormalRequest(NormalRequestContent {

@@ -831,4 +831,34 @@ mod tests {
             assert_eq!(deserialized.error_description, "Test error");
         }
     }
+
+    #[test]
+    fn test_package_enum_serialization() {
+        // Test how the Package enum (not PackageGen) serializes
+        let package = Package::Log(LogContent {
+            level: "info".to_string(),
+            message: "Test message".to_string(),
+        });
+
+        let json = serde_json::to_string(&package).unwrap();
+        println!("Package enum serialized: {}", json);
+
+        // Expected format according to protocol
+        let expected = r#"{"packageType":"log","content":{"level":"info","message":"Test message"}}"#;
+        assert_eq!(json, expected);
+    }
+
+    #[test]
+    fn test_package_enum_deserialization() {
+        let json = r#"{"packageType":"log","content":{"level":"info","message":"Test message"}}"#;
+        let package: Package = serde_json::from_str(json).unwrap();
+
+        match package {
+            Package::Log(content) => {
+                assert_eq!(content.level, "info");
+                assert_eq!(content.message, "Test message");
+            }
+            _ => panic!("Wrong package type"),
+        }
+    }
 }

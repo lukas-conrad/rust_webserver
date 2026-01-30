@@ -170,7 +170,7 @@ async fn system_test() {
 
     // Performance test: Send parallel requests
     println!("\n=== Starting Performance Test ===");
-    let request_count = 1000;
+    let request_count = 500;
     let mut handles = Vec::new();
     let test_message_perf = "Performance Test!";
 

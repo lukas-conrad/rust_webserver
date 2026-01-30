@@ -89,7 +89,7 @@ impl JsonCommunicator {
                     let _ = listener(package).await;
                 }
             }
-            Err(err) => {
+            Err(_err) => {
                 // TODO: Error handling (package deserialisation)
             }
         }

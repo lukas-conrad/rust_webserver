@@ -30,7 +30,7 @@ impl PackageHandler {
                         let listener = package_handler.listener.lock().await;
                         let _ = listener(data).await;
                     }
-                    Err(err) => {
+                    Err(_err) => {
                         // TODO: Error handling
                         break;
                     }

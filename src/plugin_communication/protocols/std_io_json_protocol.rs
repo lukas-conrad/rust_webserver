@@ -22,7 +22,7 @@ impl Protocol for StdIoJsonProtocol {
         entry: &PluginEntry,
         plugin_starter: &Box<dyn PluginStarter>,
     ) -> Result<Box<dyn PluginCommunicator>, ProtocolError> {
-        let mut controller = plugin_starter
+        let controller = plugin_starter
             .start_app(entry)
             .await
             .map_err(|e| ProtocolError::StartupError(e.to_string()))?;

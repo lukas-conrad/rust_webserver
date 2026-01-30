@@ -1,6 +1,5 @@
 use crate::io::data_storage::FileSystemError::{LoadError, NoDirError, Other, StoreError};
 use async_trait::async_trait;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use strum::Display;
 use tokio::fs;
@@ -342,7 +341,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_files_non_recursive() {
-        let (storage, temp_dir) = create_test_storage();
+        let (storage, _temp_dir) = create_test_storage();
 
         // Create test files structure
         storage

@@ -8,14 +8,13 @@ use crate::plugin_communication::plugin_communicator::{
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::sync::Arc;
-use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{Mutex, RwLock};
 
 /// Configuration for handshake response
 #[derive(Debug, Clone)]
 pub struct HandshakeConfig {
-    pub response_code: u32,
+    pub response_code: i32,
     pub response_code_text: String,
 }
 
@@ -27,7 +26,7 @@ impl HandshakeConfig {
         }
     }
 
-    pub fn failure(code: u32, message: String) -> Self {
+    pub fn failure(code: i32, message: String) -> Self {
         Self {
             response_code: code,
             response_code_text: message,

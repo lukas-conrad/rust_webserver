@@ -121,8 +121,8 @@ async fn system_test() {
     let stderr = server_process.stderr.take().expect("Failed to get stderr");
 
     // Spawn tasks to read stdout and stderr and print them in real-time
-    let stdout_task = print_stdio(stdout, "[SERVER]".to_string());
-    let stderr_task = print_stdio(stderr, "[SERVER ERR]".to_string());
+    print_stdio(stdout, "[SERVER]".to_string());
+    print_stdio(stderr, "[SERVER ERR]".to_string());
 
     // Check if the server process is still running
     sleep(Duration::from_millis(500)).await;

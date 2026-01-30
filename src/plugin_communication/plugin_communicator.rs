@@ -215,12 +215,11 @@ mod tests {
         let (read2, write2) = tokio::io::split(server);
 
         // Create two communicators
-        let comm1 = JsonCommunicator::new(Box::new(read1), Box::new(write1));
+        let _comm1 = JsonCommunicator::new(Box::new(read1), Box::new(write1));
         let comm2 = JsonCommunicator::new(Box::new(read2), Box::new(write2));
 
         // Setup comm2 to automatically respond to incoming packages
         let comm2_arc = Arc::new(comm2);
-        let comm2_clone = comm2_arc.clone();
 
         // We need to set listener before wrapping in Arc, so we need a different approach
         let (client2, server2) = duplex(1024);
@@ -302,7 +301,7 @@ mod tests {
         let (read2, write2) = tokio::io::split(server);
 
         // Create two communicators
-        let mut comm1 = JsonCommunicator::new(Box::new(read1), Box::new(write1));
+        let comm1 = JsonCommunicator::new(Box::new(read1), Box::new(write1));
         let mut comm2 = JsonCommunicator::new(Box::new(read2), Box::new(write2));
 
         // Setup receiver for comm2

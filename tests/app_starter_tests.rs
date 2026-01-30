@@ -90,7 +90,7 @@ async fn test_controller_stdin_stdout() {
     let command = format!("{} --echo", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // Get stdin and stdout
     let mut stdin = controller.get_stdin().await.unwrap();
@@ -123,7 +123,7 @@ async fn test_controller_stderr() {
     let command = format!("{} --stderr-message {}", dummy_path.display(), error_message);
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // Get stderr
     let stderr = controller.get_stderr().await.unwrap();
@@ -149,7 +149,7 @@ async fn test_controller_exit_code() {
     let command = format!("{} --exit-code {}", dummy_path.display(), exit_code);
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // Wait for the process to complete
     let status = controller.wait().await.unwrap();
@@ -166,7 +166,7 @@ async fn test_controller_is_running() {
     let command = format!("{} --sleep 2000", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // Should be running
     assert!(controller.is_running().await, "Process should be running");
@@ -190,7 +190,7 @@ async fn test_controller_shutdown() {
     let command = format!("{} --infinite-loop", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     assert!(controller.is_running().await, "Process should be running");
 
@@ -214,7 +214,7 @@ async fn test_controller_wait() {
     let command = format!("{} --sleep 100 --exit-code 5", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // Wait for process to complete
     let status = controller.wait().await.unwrap();
@@ -235,7 +235,7 @@ async fn test_controller_get_stdin_twice_fails() {
     let command = format!("{} --echo", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // First call should succeed
     let stdin1 = controller.get_stdin().await;
@@ -259,7 +259,7 @@ async fn test_controller_get_stdout_twice_fails() {
     let command = format!("{} --echo", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // First call should succeed
     let stdout1 = controller.get_stdout().await;
@@ -283,7 +283,7 @@ async fn test_controller_get_stderr_twice_fails() {
     let command = format!("{} --stderr-message \"test\"", dummy_path.display());
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // First call should succeed
     let stderr1 = controller.get_stderr().await;
@@ -310,7 +310,7 @@ async fn test_multiple_commands_combined() {
     );
     let entry = create_test_plugin_entry(command);
 
-    let mut controller = starter.start_app(&entry).await.unwrap();
+    let controller = starter.start_app(&entry).await.unwrap();
 
     // Read stderr message
     let stderr = controller.get_stderr().await.unwrap();

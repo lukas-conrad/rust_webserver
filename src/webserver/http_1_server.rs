@@ -15,7 +15,7 @@ use log::error;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::{lookup_host, TcpListener};
+use tokio::net::{TcpListener};
 use tokio::sync::Mutex;
 
 pub struct Http1Server {

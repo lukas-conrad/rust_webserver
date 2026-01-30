@@ -33,7 +33,7 @@ impl RunningPlugin {
         let protocol_enum = entry.config.protocol.clone();
         let mut protocol = protocol_enum.get_protocol();
 
-        let mut communicator = protocol
+        let communicator = protocol
             .start_communication(entry, plugin_starter)
             .await
             .map_err(|e| PluginError::PluginScanError(e.to_string()))?;
@@ -102,6 +102,7 @@ impl RunningPlugin {
         }?;
         Ok(result.unwrap())
     }
+    
     pub async fn send_package(&self, package: &Package) -> Result<(), CommunicationError> {
         let _ = self.communicator.send_package(&package, None).await?;
         Ok(())

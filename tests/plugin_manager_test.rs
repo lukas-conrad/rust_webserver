@@ -12,7 +12,6 @@ use rust_webserver::plugin_communication::models::Package::{NormalRequest, Norma
 use rust_webserver::plugin_communication::models::{
     HttpRequest, HttpResponse, NormalResponseContent, RequestInformation,
 };
-use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -165,7 +164,10 @@ async fn test_parallel_requests() {
         .for_each(|response| assert_eq!(response.body, test_message));
 
     let elapsed = time.elapsed().unwrap();
-    println!("{request_count} requests processed in {} ms", elapsed.as_millis());
+    println!(
+        "{request_count} requests processed in {} ms",
+        elapsed.as_millis()
+    );
     assert!(elapsed < Duration::from_millis(200));
 }
 

@@ -1,6 +1,5 @@
 use crate::plugin_communication::plugin_communicator::Filter;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use strum::{Display, EnumString};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

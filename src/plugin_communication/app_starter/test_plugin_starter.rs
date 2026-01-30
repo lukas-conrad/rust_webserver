@@ -5,7 +5,7 @@ use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, Pr
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
-use std::io::{Error, ErrorKind};
+use std::io::Error;
 use std::process::ExitStatus;
 use tokio::io::{duplex, AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;

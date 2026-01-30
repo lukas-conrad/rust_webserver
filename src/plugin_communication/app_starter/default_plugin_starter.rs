@@ -1,11 +1,11 @@
 use crate::io::data_storage::FSBinding;
 use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError;
+use crate::plugin::plugin_manager::PluginError::PluginStartError;
 use crate::plugin_communication::app_starter::default_program_controller::DefaultProgramController;
 use crate::plugin_communication::app_starter::plugin_starter::{PluginStarter, ProgramController};
 use async_trait::async_trait;
 use log::info;
-use std::io::Error;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
@@ -26,7 +26,12 @@ impl PluginStarter for DefaultPluginStarter {
         &self,
         entry: &PluginEntry,
     ) -> Result<Box<dyn ProgramController>, PluginError> {
-        let dir = entry.path.parent().unwrap();
+        let result = self.data_storage.translate_to_fs(&entry.path);
+        let dir = result
+            .map_err(|error| PluginStartError(error.to_string()))?;
+        let dir = dir
+            .parent()
+            .unwrap();
 
         info!(
             "Starting plugin {} with {}",

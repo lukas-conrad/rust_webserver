@@ -1,7 +1,6 @@
 use crate::plugin::plugin_manager::PluginError;
 use crate::plugin_communication::models::{HttpRequest, HttpResponse};
 use futures::future::BoxFuture;
-use hyper::service::Service;
 use hyper::StatusCode;
 use strum::Display;
 

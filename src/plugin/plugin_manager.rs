@@ -12,7 +12,7 @@ use log::{debug, error, info};
 use std::path::Path;
 use std::sync::Arc;
 use strum::Display;
-use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
+use tokio::sync::{Mutex, RwLock, RwLockWriteGuard};
 
 #[derive(Display, Debug)]
 pub enum PluginError {

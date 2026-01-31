@@ -76,7 +76,6 @@ impl JsonCommunicator {
     ) {
         match serde_json::from_slice::<Package>(data.as_slice()) {
             Ok(package) => {
-                info!("Received Package: {:?}", package);
                 let mut vec_guard = response_listener.lock().await;
                 let vec = vec_guard.deref_mut();
                 let pos = vec.iter().position(|(filter, _)| filter(&package));

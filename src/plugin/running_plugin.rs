@@ -59,7 +59,7 @@ impl RunningPlugin {
             protocol: self.protocol_enum.to_string(),
         });
 
-        let result = tokio::select! {
+        let result = select! {
             result = self
             .communicator
             .send_package(&handshake_request, Some(PackageHandshakeResponse::filter())) => result,

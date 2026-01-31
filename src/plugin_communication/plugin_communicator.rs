@@ -6,6 +6,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use log::info;
 use strum::Display;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
@@ -75,6 +76,7 @@ impl JsonCommunicator {
     ) {
         match serde_json::from_slice::<Package>(data.as_slice()) {
             Ok(package) => {
+                info!("Received Package: {:?}", package);
                 let mut vec_guard = response_listener.lock().await;
                 let vec = vec_guard.deref_mut();
                 let pos = vec.iter().position(|(filter, _)| filter(&package));

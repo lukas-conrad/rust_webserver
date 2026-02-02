@@ -32,8 +32,19 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     std::panic::set_hook(Box::new(|panic_info| {
-        eprintln!("Panic occurred: {:?}", panic_info);
-        std::process::exit(1);
+        let error_msg = format!("Panic occurred: {:?}", panic_info);
+        eprintln!("{}", error_msg);
+
+        let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+        let log_path = format!("error_logs/panic_{}.log", timestamp);
+
+        if let Err(e) = std::fs::write(&log_path, &error_msg) {
+            eprintln!("Failed to write panic log to {}: {}", log_path, e);
+        } else {
+            eprintln!("Panic log written to {}", log_path);
+        }
+
+        exit(1);
     }));
     env_logger::init();
 

@@ -4,10 +4,11 @@ use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError::{PluginNotFoundError, PluginScanError};
 use crate::plugin::running_plugin::RunningPlugin;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
-use crate::plugin_communication::models::HttpRequest;
+use crate::plugin_communication::models::{HttpRequest, Package};
 use crate::plugin_communication::models::Package::{NormalRequest, NormalResponse};
 use crate::plugin_communication::models::{HttpResponse, NormalRequestContent};
 use async_trait::async_trait;
+use futures::FutureExt;
 use log::{debug, error, info};
 use std::path::Path;
 use std::sync::Arc;
@@ -29,7 +30,7 @@ pub trait RequestHandler: Send + Sync {
 pub struct PluginManager {
     pub plugins: RwLock<Vec<Arc<RunningPlugin>>>,
     pub plugin_entries: Vec<PluginEntry>,
-    data_storage: Mutex<Box<dyn DataStorage>>,
+    data_storage: Arc<Mutex<Box<dyn DataStorage>>>,
     plugin_starter: Box<dyn PluginStarter>,
 }
 impl PluginManager {
@@ -37,7 +38,7 @@ impl PluginManager {
         Self {
             plugins: RwLock::new(vec![]),
             plugin_entries: vec![],
-            data_storage: Mutex::new(data_storage),
+            data_storage: Arc::new(Mutex::new(data_storage)),
             plugin_starter,
         }
     }
@@ -66,8 +67,60 @@ impl PluginManager {
     }
 
     pub async fn start_plugin(&self, plugin_entry: &PluginEntry) -> Result<(), PluginError> {
-        let running_plugin =
+        let mut running_plugin =
             RunningPlugin::start_plugin(plugin_entry, &self.plugin_starter).await?;
+        let data_storage = self.data_storage.clone();
+        let plugin_name = plugin_entry.config.plugin_name.clone();
+
+        running_plugin.set_listener(Box::new(move |package| {
+            let data_storage = data_storage.clone();
+            let plugin_name = plugin_name.clone();
+
+            async move {
+                match package {
+                    Package::Error(err) => {
+                        error!("[Plugin: {}] Error (code {}): {}",
+                            plugin_name, err.error_code, err.error_description);
+
+                        // Speichere Error-Log als JSON-Datei
+                        let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+                        let log_path = format!("error_logs/error_{}_{}.json", plugin_name, timestamp);
+
+                        let error_log = serde_json::json!({
+                            "timestamp": timestamp.to_string(),
+                            "plugin_name": plugin_name,
+                            "error_code": err.error_code,
+                            "error_description": err.error_description,
+                            "policy": err.policy
+                        });
+
+                        if let Ok(json_string) = serde_json::to_string_pretty(&error_log) {
+                            let path = Path::new(&log_path);
+                            if let Err(e) = data_storage.lock().await.store_data(
+                                json_string.into_bytes(),
+                                path
+                            ).await {
+                                error!("Failed to write error log to {}: {}", log_path, e);
+                            } else {
+                                info!("Error log written to {}", log_path);
+                            }
+                        }
+                    }
+                    Package::Log(log) => {
+                        let level = log.level.to_lowercase();
+                        match level.as_str() {
+                            "error" => error!("[Plugin: {}] {}", plugin_name, log.message),
+                            "warn" | "warning" => log::warn!("[Plugin: {}] {}", plugin_name, log.message),
+                            "info" => info!("[Plugin: {}] {}", plugin_name, log.message),
+                            "debug" => debug!("[Plugin: {}] {}", plugin_name, log.message),
+                            "trace" => log::trace!("[Plugin: {}] {}", plugin_name, log.message),
+                            _ => info!("[Plugin: {}] {}", plugin_name, log.message),
+                        }
+                    }
+                    _ => {}
+                }
+            }.boxed()
+        })).await;
 
         self.plugins.write().await.push(Arc::new(running_plugin));
 

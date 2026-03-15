@@ -4,12 +4,11 @@ use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError::{PluginNotFoundError, PluginScanError};
 use crate::plugin::running_plugin::RunningPlugin;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
-use crate::plugin_communication::models::{HttpRequest, Package};
+use crate::plugin_communication::models::HttpRequest;
 use crate::plugin_communication::models::Package::{NormalRequest, NormalResponse};
 use crate::plugin_communication::models::{HttpResponse, NormalRequestContent};
 use async_trait::async_trait;
-use futures::FutureExt;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, RwLockWriteGuard};
@@ -76,6 +75,33 @@ impl PluginManager {
                 let plugin_name = plugin_name.clone();
                 async move {
                 match package {
+                    Package::Error(err) => {
+                        error!("[Plugin: {}] Error (code {}): {}",
+                            plugin_name, err.error_code, err.error_description);
+
+                        // Speichere Error-Log als JSON-Datei
+                        let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+                        let log_path = format!("error_logs/error_{}_{}.json", plugin_name, timestamp);
+
+                        let error_log = serde_json::json!({
+                            "timestamp": timestamp.to_string(),
+                            "plugin_name": plugin_name,
+                            "error_code": err.error_code,
+                            "error_description": err.error_description,
+                            "policy": err.policy
+                        });
+
+                        if let Ok(json_string) = serde_json::to_string_pretty(&error_log) {
+                            let path = Path::new(&log_path);
+                            if let Err(e) = data_storage.lock().await.store_data(
+                                json_string.into_bytes(),
+                                path
+                            ).await {
+                                error!("Failed to write error log to {}: {}", log_path, e);
+                            } else {
+                                info!("Error log written to {}", log_path);
+                            }
+                        }
                     Package::Log(log) => {
                         match log.level.to_ascii_lowercase().as_str() {
                             "debug" => debug!("[plugin:{}] {}", plugin_name, log.message),

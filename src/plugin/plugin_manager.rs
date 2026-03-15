@@ -4,11 +4,12 @@ use crate::plugin::plugin_entry::PluginEntry;
 use crate::plugin::plugin_manager::PluginError::{PluginNotFoundError, PluginScanError};
 use crate::plugin::running_plugin::RunningPlugin;
 use crate::plugin_communication::app_starter::plugin_starter::PluginStarter;
-use crate::plugin_communication::models::HttpRequest;
+use crate::plugin_communication::models::{HttpRequest, Package};
 use crate::plugin_communication::models::Package::{NormalRequest, NormalResponse};
 use crate::plugin_communication::models::{HttpResponse, NormalRequestContent};
 use async_trait::async_trait;
-use log::{debug, error, info};
+use futures::FutureExt;
+use log::{debug, error, info, warn};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, RwLockWriteGuard};
@@ -66,8 +67,36 @@ impl PluginManager {
     }
 
     pub async fn start_plugin(&self, plugin_entry: &PluginEntry) -> Result<(), PluginError> {
-        let running_plugin =
+        let mut running_plugin =
             RunningPlugin::start_plugin(plugin_entry, &self.plugin_starter).await?;
+        let plugin_name = plugin_entry.config.plugin_name.clone();
+
+        running_plugin
+            .set_listener(Box::new(move |package| {
+                let plugin_name = plugin_name.clone();
+                async move {
+                match package {
+                    Package::Log(log) => {
+                        match log.level.to_ascii_lowercase().as_str() {
+                            "debug" => debug!("[plugin:{}] {}", plugin_name, log.message),
+                            "info" => info!("[plugin:{}] {}", plugin_name, log.message),
+                            "warning" => warn!("[plugin:{}] {}", plugin_name, log.message),
+                            "error" => error!("[plugin:{}] {}", plugin_name, log.message),
+                            "critical" => error!(
+                                "[plugin:{}][CRITICAL] {}",
+                                plugin_name, log.message
+                            ),
+                            level => warn!(
+                                "[plugin:{}] Unknown log level '{}' from plugin: {}",
+                                plugin_name, level, log.message
+                            ),
+                        }
+                    }
+                    _ => {}
+                }
+            }.boxed()
+            }))
+            .await;
 
         self.plugins.write().await.push(Arc::new(running_plugin));
 

@@ -18,7 +18,6 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use std::path::Path;
 
-// TLS
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::{self, ServerConfig};
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -105,14 +104,14 @@ fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, IoError> {
 fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
     let keyfile = File::open(Path::new(path))?;
     let mut reader = BufReader::new(keyfile);
-    // Zuerst PKCS#8 versuchen
+
     let mut pkcs8_keys = rustls_pemfile::pkcs8_private_keys(&mut reader)
         .filter_map(|res| res.ok());
     if let Some(key) = pkcs8_keys.next() {
         info!("PKCS#8 private key loaded from {path}");
         return Ok(PrivateKeyDer::Pkcs8(key));
     }
-    // Reader zurücksetzen und RSA versuchen
+
     let keyfile = File::open(Path::new(path))?;
     let mut reader = BufReader::new(keyfile);
     let mut rsa_keys = rustls_pemfile::rsa_private_keys(&mut reader)
@@ -121,7 +120,7 @@ fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
         info!("RSA private key loaded from {path}");
         return Ok(PrivateKeyDer::Pkcs1(key));
     }
-    // Reader zurücksetzen und EC versuchen
+
     let keyfile = File::open(Path::new(path))?;
     let mut reader = BufReader::new(keyfile);
     let mut ec_keys = rustls_pemfile::ec_private_keys(&mut reader)
@@ -268,7 +267,6 @@ async fn test_https1server_with_self_signed_cert() {
     use rustls::client::danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid};
     use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
     use std::sync::Arc as StdArc;
-    // use std::time::SystemTime;
     use crate::plugin_communication::models::{HttpRequest, HttpResponse};
     use crate::webserver::https_1_server::Https1Server;
     use crate::webserver::webserver::Webserver;

@@ -16,10 +16,12 @@ mod webserver;
 mod io;
 mod plugin;
 mod plugin_communication;
+mod config;
 use crate::plugin::plugin_manager::{PluginManager, RequestHandler};
 use crate::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
 use crate::webserver::http_1_server::Http1Server;
 use crate::webserver::webserver::Webserver;
+use crate::config::ServerConfig;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -50,7 +52,23 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
 
     let args = Args::parse();
 
-    info!("Starting webserver on port {}...", args.port);
+    // Load configuration
+    let config_path = "config/config.json";
+    let server_config = match ServerConfig::load_or_create(config_path) {
+        Ok(config) => {
+            info!("Server configuration loaded successfully");
+            config
+        }
+        Err(e) => {
+            error!("Failed to load or create server configuration: {}", e);
+            return Err(format!("Config error: {}", e).into());
+        }
+    };
+
+    // TODO: Use server_config to initialize HTTP and HTTPS servers
+    // Integrate HTTP and HTTPS server startup based on config.http.enabled and config.https.enabled
+
+    info!("Starting webserver...");
 
     let plugins_dir = PathBuf::from("plugins");
     let error_log_dir = PathBuf::from("error_logs");

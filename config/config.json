@@ -1,0 +1,13 @@
+{
+  "http": {
+    "enabled": true,
+    "port": 80
+  },
+  "https": {
+    "enabled": false,
+    "port": 443,
+    "cert_path": "./certs/server.crt",
+    "key_path": "./certs/server.key"
+  }
+}
+

@@ -1,5 +1,7 @@
 use crate::plugin_communication::models::{HttpHeader, HttpRequest};
 use crate::webserver::webserver::{CallbackFn, ServerError, Webserver};
+use crate::webserver::cert_manager::CertificateManager;
+use crate::config::DomainConfig;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
@@ -20,9 +22,6 @@ use tokio::sync::{Mutex, RwLock};
 
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::{self, ServerConfig};
-use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use std::fs::File;
-use std::io::{BufReader, Error as IoError, Seek, SeekFrom};
 use hyper::server::conn::http1;
 
 /// HTTPS/1.1 Server implementation using Hyper and TLS
@@ -36,19 +35,63 @@ pub struct Https1Server {
 }
 
 impl Https1Server {
-    pub async fn start(addr: SocketAddr, cert_path: &str, key_path: &str) -> Result<Arc<Self>, std::io::Error> {
+    /// Start HTTPS server with multi-domain SNI support
+    pub async fn start(
+        addr: SocketAddr,
+        domains: Vec<DomainConfig>,
+    ) -> Result<Arc<Self>, std::io::Error> {
+        if domains.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "At least one domain configuration is required",
+            ));
+        }
+
+        // Create certificate manager for all domains
+        let cert_manager = Arc::new(CertificateManager::new());
+
+        // Pre-load all certificates to ensure they're valid before starting server
+        for domain_config in &domains {
+            match cert_manager
+                .get_or_load_config(&domain_config.domain, domain_config)
+                .await
+            {
+                Ok(_) => {
+                    info!("Pre-loaded certificate for domain: {}", domain_config.domain);
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to pre-load certificate for domain {}: {}",
+                        domain_config.domain, e
+                    );
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!("Invalid certificate for domain: {}", domain_config.domain),
+                    ));
+                }
+            }
+        }
+
         let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
         let server = Arc::new(Self {
             listener: Arc::new(RwLock::new(None)),
             shutdown_rx: Arc::new(Mutex::new(Some(shutdown_rx))),
         });
 
-        let tls_config = load_tls_config(cert_path, key_path)?;
-        let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
+        // Load the first domain's certificate as default
+        let default_domain = &domains[0];
+        let default_config = cert_manager
+            .get_or_load_config(&default_domain.domain, default_domain)
+            .await?;
+
+        let tls_acceptor = TlsAcceptor::from(default_config);
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
         let server_clone = server.clone();
         let shutdown_tx_clone = shutdown_tx.clone();
+        let cert_manager_clone = cert_manager.clone();
+        let domains_clone = domains.clone();
+
         tokio::task::spawn(async move {
             let mut shutdown_rx = shutdown_tx_clone.subscribe();
             loop {
@@ -63,6 +106,11 @@ impl Https1Server {
                             Ok((stream, _)) => {
                                 let acceptor = tls_acceptor.clone();
                                 let service = server.clone();
+                                #[allow(unused_variables)]
+                                let cert_manager = cert_manager_clone.clone();
+                                #[allow(unused_variables)]
+                                let domains = domains_clone.clone();
+
                                 tokio::task::spawn(async move {
                                     match acceptor.accept(stream).await {
                                         Ok(tls_stream) => {
@@ -89,81 +137,15 @@ impl Https1Server {
             }
         });
 
-        info!("Https1Server started on {}", addr);
+        info!("Https1Server started on {} with {} domain(s)", addr, domains.len());
+        for domain in &domains {
+            info!("  - {}", domain.domain);
+        }
+
         Ok(server)
     }
 }
 
-fn load_tls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, IoError> {
-    let certs = load_certs(cert_path)?;
-    let key = load_key(key_path)?;
-    let config = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, key)
-        .map_err(|e| IoError::new(std::io::ErrorKind::InvalidInput, format!("TLS config error: {e}")))?;
-    Ok(config)
-}
-
-fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, IoError> {
-    let certfile = File::open(Path::new(path))?;
-    let mut reader = BufReader::new(certfile);
-    let certs: Vec<_> = rustls_pemfile::certs(&mut reader)
-        .filter_map(|res| res.ok())
-        .collect();
-    if certs.is_empty() {
-        error!("No certificates found in {path}");
-        return Err(IoError::new(std::io::ErrorKind::InvalidInput, "No certificates found"));
-    } else {
-        info!("{} certificates loaded from {path}", certs.len());
-    }
-    Ok(certs)
-}
-
-fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
-    let keyfile = File::open(Path::new(path))?;
-    let mut reader = BufReader::new(keyfile);
-
-    // Try PKCS#8 first
-    {
-        let mut pkcs8_keys = rustls_pemfile::pkcs8_private_keys(&mut reader)
-            .filter_map(|res| res.ok());
-        if let Some(key) = pkcs8_keys.next() {
-            info!("PKCS#8 private key loaded from {path}");
-            return Ok(PrivateKeyDer::Pkcs8(key));
-        }
-    }
-
-    // Seek back to beginning and try RSA
-    reader.seek(SeekFrom::Start(0)).map_err(|e| {
-        error!("Failed to seek in key file {path}: {e}");
-        e
-    })?;
-    {
-        let mut rsa_keys = rustls_pemfile::rsa_private_keys(&mut reader)
-            .filter_map(|res| res.ok());
-        if let Some(key) = rsa_keys.next() {
-            info!("RSA private key loaded from {path}");
-            return Ok(PrivateKeyDer::Pkcs1(key));
-        }
-    }
-
-    // Seek back to beginning and try EC
-    reader.seek(SeekFrom::Start(0)).map_err(|e| {
-        error!("Failed to seek in key file {path}: {e}");
-        e
-    })?;
-    {
-        let mut ec_keys = rustls_pemfile::ec_private_keys(&mut reader)
-            .filter_map(|res| res.ok());
-        if let Some(key) = ec_keys.next() {
-            info!("EC private key loaded from {path}");
-            return Ok(PrivateKeyDer::Sec1(key));
-        }
-    }
-
-    error!("No private key found in {path} (neither PKCS#8, RSA, nor EC)");
-    Err(IoError::new(std::io::ErrorKind::InvalidInput, "No private key found (neither PKCS#8, RSA, nor EC)"))
-}
 
 impl Webserver for Https1Server {
     fn set_listener(&self, listener: CallbackFn) {
@@ -371,13 +353,12 @@ async fn test_https1server_with_self_signed_cert() {
     // 3. Start server on fixed test port
     let test_port = 44443;
     let addr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), test_port);
-    let server = match Https1Server::start(
-        addr,
-        cert_file.path().to_str().unwrap(),
-        key_file.path().to_str().unwrap(),
-    )
-    .await
-    {
+    let domain_config = crate::config::DomainConfig {
+        domain: "localhost".to_string(),
+        cert_path: cert_file.path().to_str().unwrap().to_string(),
+        key_path: key_file.path().to_str().unwrap().to_string(),
+    };
+    let server = match Https1Server::start(addr, vec![domain_config]).await {
         Ok(s) => s,
         Err(e) => {
             // If port is in use, skip test

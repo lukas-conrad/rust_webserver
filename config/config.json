@@ -6,8 +6,13 @@
   "https": {
     "enabled": false,
     "port": 443,
-    "cert_path": "./certs/server.crt",
-    "key_path": "./certs/server.key"
+    "domains": [
+      {
+        "domain": "example.com",
+        "cert_path": "./certs/example.com.crt",
+        "key_path": "./certs/example.com.key"
+      }
+    ]
   }
 }
 

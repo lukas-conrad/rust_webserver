@@ -4,7 +4,7 @@ use crate::io::data_storage::FSDataStorage;
 use clap::Parser;
 use futures::FutureExt;
 use log::{debug, error, info};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
@@ -20,15 +20,16 @@ mod config;
 use crate::plugin::plugin_manager::{PluginManager, RequestHandler};
 use crate::plugin_communication::app_starter::default_plugin_starter::DefaultPluginStarter;
 use crate::webserver::http_1_server::Http1Server;
+use crate::webserver::https_1_server::Https1Server;
 use crate::webserver::webserver::Webserver;
 use crate::config::ServerConfig;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Port to bind the server to
-    #[arg(short, long, default_value_t = 80)]
-    port: u16,
+    /// Optional: Override config file path
+    #[arg(short, long, default_value_t = String::from("config/config.json"))]
+    config: String,
 }
 
 #[tokio::main]
@@ -53,8 +54,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
     let args = Args::parse();
 
     // Load configuration
-    let config_path = "config/config.json";
-    let server_config = match ServerConfig::load_or_create(config_path) {
+    let server_config = match ServerConfig::load_or_create(&args.config) {
         Ok(config) => {
             info!("Server configuration loaded successfully");
             config
@@ -65,8 +65,59 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
         }
     };
 
-    // TODO: Use server_config to initialize HTTP and HTTPS servers
-    // Integrate HTTP and HTTPS server startup based on config.http.enabled and config.https.enabled
+    // Initialize HTTP and HTTPS servers based on configuration
+    let mut http_server: Option<Arc<dyn Webserver>> = None;
+    let mut https_server: Option<Arc<dyn Webserver>> = None;
+
+    if server_config.http.enabled {
+        info!(
+            "Starting HTTP server on 0.0.0.0:{}",
+            server_config.http.port
+        );
+        match Http1Server::start(SocketAddr::from(([0, 0, 0, 0], server_config.http.port))).await
+        {
+            Ok(server) => http_server = Some(server),
+            Err(e) => {
+                error!("Failed to start HTTP server: {}", e);
+                return Err(format!("HTTP server error: {}", e).into());
+            }
+        }
+    } else {
+        info!("HTTP server is disabled in configuration");
+    }
+
+    if server_config.https.enabled {
+        if server_config.https.domains.is_empty() {
+            error!("HTTPS is enabled but no domains are configured");
+            return Err("HTTPS requires at least one domain configuration".into());
+        }
+
+        info!(
+            "Starting HTTPS server on 0.0.0.0:{} with {} domain(s)",
+            server_config.https.port,
+            server_config.https.domains.len()
+        );
+        match Https1Server::start(
+            SocketAddr::from(([0, 0, 0, 0], server_config.https.port)),
+            server_config.https.domains.clone(),
+        )
+        .await
+        {
+            Ok(server) => https_server = Some(server),
+            Err(e) => {
+                error!("Failed to start HTTPS server: {}", e);
+                return Err(format!("HTTPS server error: {}", e).into());
+            }
+        }
+    } else {
+        info!("HTTPS server is disabled in configuration");
+    }
+
+    // Ensure at least one server is enabled
+    if http_server.is_none() && https_server.is_none() {
+        error!("Neither HTTP nor HTTPS is enabled in configuration");
+        return Err("At least one server (HTTP or HTTPS) must be enabled".into());
+    }
 
     info!("Starting webserver...");
 
@@ -106,22 +157,28 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
 
     let plugin_manager = Arc::new(plugin_manager);
 
-    let server =
-        Http1Server::start(SocketAddr::from(([0, 0, 0, 0], args.port))).await;
-    let plugin_manager_clone = plugin_manager.clone();
-    match server {
-        Ok(server) => {
-            server.set_listener(Box::new(move |request| {
-                debug!("Received package {:?}", request);
-                let plugin_manager_clone = plugin_manager_clone.clone();
-                async move { plugin_manager_clone.clone().route_request(request).await }.boxed()
-            }));
-        }
-        Err(e) => {
-            error!("Could not start webserver: {}", e.to_string());
-            return Err(Box::from(e));
-        }
+    // Set listener for all active servers
+    let servers: Vec<Arc<dyn Webserver>> = vec![
+        http_server.clone(),
+        https_server.clone(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    for server in servers {
+        let plugin_manager_clone = plugin_manager.clone();
+        server.set_listener(Box::new(move |request| {
+            debug!("Received package {:?}", request);
+            let plugin_manager_clone = plugin_manager_clone.clone();
+            async move {
+                plugin_manager_clone.clone().route_request(request).await
+            }
+            .boxed()
+        }));
     }
+
+    info!("All configured servers are running");
 
     match tokio::signal::ctrl_c().await {
         Ok(()) => {

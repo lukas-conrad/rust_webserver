@@ -1,7 +1,18 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use log::{error, info};
+use log::info;
+
+/// Configuration for a single domain with its certificate
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomainConfig {
+    /// Domain name (used for SNI matching)
+    pub domain: String,
+    /// Path to SSL certificate file
+    pub cert_path: String,
+    /// Path to SSL private key file
+    pub key_path: String,
+}
 
 /// Configuration for HTTP server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,10 +30,9 @@ pub struct HttpsConfig {
     pub enabled: bool,
     /// Port for HTTPS server
     pub port: u16,
-    /// Path to SSL certificate file
-    pub cert_path: String,
-    /// Path to SSL private key file
-    pub key_path: String,
+    /// List of domains with their certificates (for SNI support)
+    #[serde(default)]
+    pub domains: Vec<DomainConfig>,
 }
 
 /// Main server configuration
@@ -45,8 +55,13 @@ impl ServerConfig {
             https: HttpsConfig {
                 enabled: false,
                 port: 443,
-                cert_path: "./certs/server.crt".to_string(),
-                key_path: "./certs/server.key".to_string(),
+                domains: vec![
+                    DomainConfig {
+                        domain: "example.com".to_string(),
+                        cert_path: "./certs/example.com.crt".to_string(),
+                        key_path: "./certs/example.com.key".to_string(),
+                    },
+                ],
             },
         }
     }

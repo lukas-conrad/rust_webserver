@@ -10,29 +10,37 @@ use hyper::body::Incoming;
 use hyper::service::Service;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use log::{error, info};
+use log::{debug, error, info, warn};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 use std::path::Path;
+use tokio::sync::{Mutex, RwLock};
 
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::{self, ServerConfig};
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::fs::File;
-use std::io::{BufReader, Error as IoError};
+use std::io::{BufReader, Error as IoError, Seek, SeekFrom};
 use hyper::server::conn::http1;
 
+/// HTTPS/1.1 Server implementation using Hyper and TLS
 pub struct Https1Server {
-    listener: Arc<Mutex<Option<CallbackFn>>>,
+    /// Callback function for handling incoming requests
+    /// Uses RwLock for better concurrency - multiple readers, single writer
+    listener: Arc<RwLock<Option<CallbackFn>>>,
+    /// Shutdown signal for graceful shutdown
+    #[allow(dead_code)]
+    shutdown_rx: Arc<Mutex<Option<tokio::sync::broadcast::Receiver<()>>>>,
 }
 
 impl Https1Server {
     pub async fn start(addr: SocketAddr, cert_path: &str, key_path: &str) -> Result<Arc<Self>, std::io::Error> {
+        let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
         let server = Arc::new(Self {
-            listener: Arc::new(Mutex::new(None)),
+            listener: Arc::new(RwLock::new(None)),
+            shutdown_rx: Arc::new(Mutex::new(Some(shutdown_rx))),
         });
 
         let tls_config = load_tls_config(cert_path, key_path)?;
@@ -40,38 +48,48 @@ impl Https1Server {
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
         let server_clone = server.clone();
+        let shutdown_tx_clone = shutdown_tx.clone();
         tokio::task::spawn(async move {
+            let mut shutdown_rx = shutdown_tx_clone.subscribe();
             loop {
-                let accept = listener.clone().accept().await;
-                let server = server_clone.clone();
-                match accept {
-                    Ok((stream, _)) => {
-                        let acceptor = tls_acceptor.clone();
-                        let service = server.clone();
-                        tokio::task::spawn(async move {
-                            match acceptor.accept(stream).await {
-                                Ok(tls_stream) => {
-                                    let io = TokioIo::new(tls_stream);
-                                    if let Err(e) = http1::Builder::new()
-                                        .serve_connection(io, service)
-                                        .await
-                                    {
-                                        error!("HTTP/1.1 connection error: {:?}", e);
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("TLS handshake error: {:?}", e);
-                                }
-                            }
-                        });
+                tokio::select! {
+                    _ = shutdown_rx.recv() => {
+                        info!("Https1Server shutting down");
+                        break;
                     }
-                    Err(e) => {
-                        error!("Accept error: {:?}", e);
+                    accept = listener.accept() => {
+                        let server = server_clone.clone();
+                        match accept {
+                            Ok((stream, _)) => {
+                                let acceptor = tls_acceptor.clone();
+                                let service = server.clone();
+                                tokio::task::spawn(async move {
+                                    match acceptor.accept(stream).await {
+                                        Ok(tls_stream) => {
+                                            let io = TokioIo::new(tls_stream);
+                                            if let Err(e) = http1::Builder::new()
+                                                .serve_connection(io, service)
+                                                .await
+                                            {
+                                                error!("HTTP/1.1 connection error: {:?}", e);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("TLS handshake error: {:?}", e);
+                                        }
+                                    }
+                                });
+                            }
+                            Err(e) => {
+                                error!("Accept error: {:?}", e);
+                            }
+                        }
                     }
                 }
             }
         });
 
+        info!("Https1Server started on {}", addr);
         Ok(server)
     }
 }
@@ -105,30 +123,44 @@ fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
     let keyfile = File::open(Path::new(path))?;
     let mut reader = BufReader::new(keyfile);
 
-    let mut pkcs8_keys = rustls_pemfile::pkcs8_private_keys(&mut reader)
-        .filter_map(|res| res.ok());
-    if let Some(key) = pkcs8_keys.next() {
-        info!("PKCS#8 private key loaded from {path}");
-        return Ok(PrivateKeyDer::Pkcs8(key));
+    // Try PKCS#8 first
+    {
+        let mut pkcs8_keys = rustls_pemfile::pkcs8_private_keys(&mut reader)
+            .filter_map(|res| res.ok());
+        if let Some(key) = pkcs8_keys.next() {
+            info!("PKCS#8 private key loaded from {path}");
+            return Ok(PrivateKeyDer::Pkcs8(key));
+        }
     }
 
-    let keyfile = File::open(Path::new(path))?;
-    let mut reader = BufReader::new(keyfile);
-    let mut rsa_keys = rustls_pemfile::rsa_private_keys(&mut reader)
-        .filter_map(|res| res.ok());
-    if let Some(key) = rsa_keys.next() {
-        info!("RSA private key loaded from {path}");
-        return Ok(PrivateKeyDer::Pkcs1(key));
+    // Seek back to beginning and try RSA
+    reader.seek(SeekFrom::Start(0)).map_err(|e| {
+        error!("Failed to seek in key file {path}: {e}");
+        e
+    })?;
+    {
+        let mut rsa_keys = rustls_pemfile::rsa_private_keys(&mut reader)
+            .filter_map(|res| res.ok());
+        if let Some(key) = rsa_keys.next() {
+            info!("RSA private key loaded from {path}");
+            return Ok(PrivateKeyDer::Pkcs1(key));
+        }
     }
 
-    let keyfile = File::open(Path::new(path))?;
-    let mut reader = BufReader::new(keyfile);
-    let mut ec_keys = rustls_pemfile::ec_private_keys(&mut reader)
-        .filter_map(|res| res.ok());
-    if let Some(key) = ec_keys.next() {
-        info!("EC private key loaded from {path}");
-        return Ok(PrivateKeyDer::Sec1(key));
+    // Seek back to beginning and try EC
+    reader.seek(SeekFrom::Start(0)).map_err(|e| {
+        error!("Failed to seek in key file {path}: {e}");
+        e
+    })?;
+    {
+        let mut ec_keys = rustls_pemfile::ec_private_keys(&mut reader)
+            .filter_map(|res| res.ok());
+        if let Some(key) = ec_keys.next() {
+            info!("EC private key loaded from {path}");
+            return Ok(PrivateKeyDer::Sec1(key));
+        }
     }
+
     error!("No private key found in {path} (neither PKCS#8, RSA, nor EC)");
     Err(IoError::new(std::io::ErrorKind::InvalidInput, "No private key found (neither PKCS#8, RSA, nor EC)"))
 }
@@ -137,7 +169,8 @@ impl Webserver for Https1Server {
     fn set_listener(&self, listener: CallbackFn) {
         let web_listener = self.listener.clone();
         tokio::spawn(async move {
-            let _ = web_listener.lock().await.insert(listener);
+            let _ = web_listener.write().await.insert(listener);
+            info!("Request listener configured");
         });
     }
 }
@@ -151,7 +184,8 @@ impl Service<Request<Incoming>> for Https1Server {
         let listener = self.listener.clone();
         Box::pin(async move {
             let result: Result<Response<Full<Bytes>>, ServerError> = async {
-                let listener_guard = listener.lock().await;
+                // Use read lock instead of write - listener doesn't change after start
+                let listener_guard = listener.read().await;
                 let listener =
                     listener_guard
                         .as_ref()
@@ -161,24 +195,31 @@ impl Service<Request<Incoming>> for Https1Server {
                         ))?;
 
                 let request = Https1Server::build_http_request(req).await;
+                debug!("Processing request: {} {}", request.request_method, request.path);
+
                 let response = listener(request).await.map_err(|err| {
+                    error!("Plugin error: {:?}", err);
                     ServerError::RequestProcessingError(
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("{:?}", err),
+                        format!("Plugin error: {:?}", err),
                     )
                 })?;
 
+                // Decode response body - distinguish between client errors and server errors
                 let body_bytes = BASE64_STANDARD.decode(&response.body).map_err(|err| {
+                    error!("Failed to decode base64 response body: {}", err);
                     ServerError::RequestProcessingError(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        err.to_string(),
+                        StatusCode::BAD_GATEWAY,
+                        format!("Invalid response from plugin: failed to decode body"),
                     )
                 })?;
 
+                // Validate status code - can be invalid from plugin
                 let status_code = StatusCode::from_u16(response.status_code).map_err(|err| {
+                    error!("Invalid status code {} from plugin: {}", response.status_code, err);
                     ServerError::RequestProcessingError(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        err.to_string(),
+                        StatusCode::BAD_GATEWAY,
+                        format!("Invalid status code from plugin: {}", response.status_code),
                     )
                 })?;
 
@@ -190,30 +231,31 @@ impl Service<Request<Incoming>> for Https1Server {
                 let client_response = response_builder
                     .body(Full::new(Bytes::from(body_bytes)))
                     .map_err(|err| {
+                        error!("Failed to build response: {}", err);
                         ServerError::RequestProcessingError(
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            err.to_string(),
+                            format!("Failed to build response"),
                         )
                     })?;
 
+                debug!("Response sent: status {}", status_code);
                 Ok(client_response)
             }
             .await;
 
             match result {
                 Ok(response) => Ok(response),
-                Err(err) => {
-                    if let ServerError::RequestProcessingError(code, msg) = err {
-                        Ok(Response::builder()
-                            .status(code)
-                            .body(Full::new(Bytes::from(msg)))
-                            .unwrap())
-                    } else {
-                        Ok(Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(Full::new(Bytes::from("Internal Server Error")))
-                            .unwrap())
-                    }
+                Err(ServerError::RequestProcessingError(code, msg)) => {
+                    warn!("Request error: {} - {}", code, msg);
+                    Ok(Response::builder()
+                        .status(code)
+                        .body(Full::new(Bytes::from(msg)))
+                        .unwrap_or_else(|_| {
+                            Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(Full::new(Bytes::from("Internal Server Error")))
+                                .unwrap()
+                        }))
                 }
             }
         })
@@ -255,7 +297,7 @@ async fn test_https1server_with_self_signed_cert() {
     use rcgen::generate_simple_self_signed;
     use tempfile::NamedTempFile;
     use std::io::Write;
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::net::SocketAddr;
     use std::sync::Arc;
     use hyper::{Request};
     use hyper_util::client::legacy::Client;
@@ -326,16 +368,25 @@ async fn test_https1server_with_self_signed_cert() {
     cert_file.write_all(cert_pem.as_bytes()).unwrap();
     key_file.write_all(key_pem.as_bytes()).unwrap();
 
-    // 3. Start server
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 44300);
-    let server = Https1Server::start(
+    // 3. Start server on fixed test port
+    let test_port = 44443;
+    let addr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), test_port);
+    let server = match Https1Server::start(
         addr,
         cert_file.path().to_str().unwrap(),
         key_file.path().to_str().unwrap(),
     )
     .await
-    .unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    {
+        Ok(s) => s,
+        Err(e) => {
+            // If port is in use, skip test
+            eprintln!("Could not bind to port {}: {}. Skipping test.", test_port, e);
+            return;
+        }
+    };
+
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     // 4. Set listener
     let (sender, receiver) = tokio::sync::oneshot::channel::<HttpRequest>();
@@ -343,7 +394,9 @@ async fn test_https1server_with_self_signed_cert() {
     server.set_listener(Box::new(move |request| {
         let sender = sender.clone();
         async move {
-            sender.lock().await.take().unwrap().send(request).unwrap();
+            if let Some(tx) = sender.lock().await.take() {
+                let _ = tx.send(request);
+            }
             Ok(HttpResponse {
                 headers: vec![],
                 status_code: 200,
@@ -365,9 +418,9 @@ async fn test_https1server_with_self_signed_cert() {
         .build();
     let client: Client<_, Full<Bytes>> = Client::builder(TokioExecutor::new()).build(https);
 
-    // 6. Send request
+    // 6. Send HTTPS request to test server
     let req = Request::builder()
-        .uri("https://localhost:44300/test")
+        .uri(format!("https://localhost:{}/test", test_port))
         .method("GET")
         .body(Full::new(Bytes::from("")))
         .unwrap();

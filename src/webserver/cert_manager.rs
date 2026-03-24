@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 use log::{error, info};
 
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use tokio_rustls::rustls::{self, ServerConfig};
+use tokio_rustls::rustls::{ServerConfig};
 use crate::config::DomainConfig;
 
 /// Manages TLS certificates for multiple domains with caching

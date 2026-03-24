@@ -25,10 +25,11 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
-      - name: Deploy binary
+      - name: Deploy binary and configuration
         run: |
           sudo systemctl stop rust_webserver
           sudo cp target/release/rust_webserver /root/webserver/rust_webserver
+          sudo cp config/config.json /root/webserver/config.json
           sudo systemctl start rust_webserver
       
       - name: Cleanup

@@ -6,7 +6,6 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use log::info;
 use strum::Display;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;

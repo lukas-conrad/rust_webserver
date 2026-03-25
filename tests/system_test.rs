@@ -5,6 +5,7 @@ use http_body_util::Full;
 use hyper::Request;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin_communication::models::RequestInformation;
+use rust_webserver::config::{ServerConfig, HttpConfig, HttpsConfig};
 use std::env;
 use std::net::TcpListener;
 use std::process::Stdio;
@@ -105,12 +106,29 @@ async fn system_test() {
     let port = find_free_port();
     println!("Using port {} for test", port);
 
+    // Create server config with the assigned port
+    let server_config = ServerConfig {
+        http: HttpConfig {
+            enabled: true,
+            port,
+        },
+        https: HttpsConfig {
+            enabled: false,
+            ..Default::default()
+        }
+    };
+    let config_path = temp_dir.path().join("config.json");
+    fs::write(
+        &config_path,
+        serde_json::to_string(&server_config).unwrap(),
+    ).await.unwrap();
+
     // Start the webserver with debug logging
     let mut server_process = Command::new(&temp_main_exe)
         .current_dir(temp_dir.path())
         .env("RUST_LOG", "debug")
-        .arg("--port")
-        .arg(port.to_string())
+        .arg("--config")
+        .arg("config.json")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

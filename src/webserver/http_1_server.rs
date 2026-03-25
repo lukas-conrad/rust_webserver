@@ -15,7 +15,7 @@ use log::error;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::{TcpListener};
+use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 pub struct Http1Server {
@@ -30,25 +30,22 @@ impl Http1Server {
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
 
-        let server_clone = server.clone();
-        tokio::task::spawn(async move {
-            loop {
-                let accept = listener.clone().accept().await;
-                let server = server_clone.clone();
-                if let Ok((stream, _)) = accept {
-                    let io = TokioIo::new(stream);
+        spawn_cloned!(server; async move {
+                loop {
+                    if let Ok((stream, _)) = listener.accept().await {
+                        let io = TokioIo::new(stream);
 
-                    let service = server.clone();
-
-                    tokio::task::spawn(async move {
-                        if let Err(err) = http1::Builder::new().serve_connection(io, service).await
-                        {
-                            error!("Connection error: {:?}", err);
-                        }
-                    });
+                        spawn_cloned!(server; async move {
+                            if let Err(err) =
+                                http1::Builder::new().serve_connection(io, server).await
+                            {
+                                error!("Connection error: {:?}", err);
+                            }
+                        });
+                    }
                 }
             }
-        });
+        );
 
         Ok(server)
     }

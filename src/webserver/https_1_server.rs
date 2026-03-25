@@ -47,50 +47,19 @@ impl Https1Server {
             ));
         }
 
-        // Create certificate manager for all domains
-        let cert_manager = Arc::new(CertificateManager::new());
-
-        // Pre-load all certificates to ensure they're valid before starting server
-        for domain_config in &domains {
-            match cert_manager
-                .get_or_load_config(&domain_config.domain, domain_config)
-                .await
-            {
-                Ok(_) => {
-                    info!("Pre-loaded certificate for domain: {}", domain_config.domain);
-                }
-                Err(e) => {
-                    error!(
-                        "Failed to pre-load certificate for domain {}: {}",
-                        domain_config.domain, e
-                    );
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        format!("Invalid certificate for domain: {}", domain_config.domain),
-                    ));
-                }
-            }
-        }
-
         let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
         let server = Arc::new(Self {
             listener: Arc::new(RwLock::new(None)),
             shutdown_rx: Arc::new(Mutex::new(Some(shutdown_rx))),
         });
 
-        // Load the first domain's certificate as default
-        let default_domain = &domains[0];
-        let default_config = cert_manager
-            .get_or_load_config(&default_domain.domain, default_domain)
-            .await?;
-
-        let tls_acceptor = TlsAcceptor::from(default_config);
+        // Build a single ServerConfig handling multiple domains via SNI
+        let sni_config = CertificateManager::build_sni_config(&domains)?;
+        let tls_acceptor = TlsAcceptor::from(sni_config);
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
         let server_clone = server.clone();
         let shutdown_tx_clone = shutdown_tx.clone();
-        let cert_manager_clone = cert_manager.clone();
-        let domains_clone = domains.clone();
 
         tokio::task::spawn(async move {
             let mut shutdown_rx = shutdown_tx_clone.subscribe();
@@ -106,10 +75,6 @@ impl Https1Server {
                             Ok((stream, _)) => {
                                 let acceptor = tls_acceptor.clone();
                                 let service = server.clone();
-                                #[allow(unused_variables)]
-                                let cert_manager = cert_manager_clone.clone();
-                                #[allow(unused_variables)]
-                                let domains = domains_clone.clone();
 
                                 tokio::task::spawn(async move {
                                     match acceptor.accept(stream).await {
@@ -353,7 +318,7 @@ async fn test_https1server_with_self_signed_cert() {
     // 3. Start server on fixed test port
     let test_port = 44443;
     let addr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), test_port);
-    let domain_config = crate::config::DomainConfig {
+    let domain_config = DomainConfig {
         domain: "localhost".to_string(),
         cert_path: cert_file.path().to_str().unwrap().to_string(),
         key_path: key_file.path().to_str().unwrap().to_string(),

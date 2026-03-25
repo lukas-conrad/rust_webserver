@@ -20,12 +20,12 @@ use tokio::fs;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Optional: Override config file path
-    #[arg(short, long, default_value_t = String::from("config/config.json"))]
+    #[arg(short, long, default_value_t = String::from("config.json"))]
     config: String,
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn error::Error + Send + Sync>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     std::panic::set_hook(Box::new(|panic_info| {
         let error_msg = format!("Panic occurred: {:?}", panic_info);
         eprintln!("{}", error_msg);

@@ -8,6 +8,9 @@ use log::{error, info};
 
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use tokio_rustls::rustls::{ServerConfig};
+use tokio_rustls::rustls::server::ResolvesServerCertUsingSni;
+use tokio_rustls::rustls::crypto::CryptoProvider;
+use tokio_rustls::rustls::sign::CertifiedKey;
 use crate::config::DomainConfig;
 
 /// Manages TLS certificates for multiple domains with caching
@@ -58,6 +61,36 @@ impl CertificateManager {
         let mut cache = self.cache.write().await;
         cache.clear();
         info!("Certificate cache cleared");
+    }
+
+    /// Build a single ServerConfig handling multiple domains via SNI
+    pub fn build_sni_config(domains: &[DomainConfig]) -> Result<Arc<ServerConfig>, IoError> {
+        let mut resolver = ResolvesServerCertUsingSni::new();
+
+        let provider = tokio_rustls::rustls::crypto::ring::default_provider();
+
+        for domain_config in domains {
+            let certs = load_certs(&domain_config.cert_path)?;
+            let key = load_key(&domain_config.key_path)?;
+
+            let signing_key = provider.key_provider.load_private_key(key)
+                .map_err(|e| IoError::new(std::io::ErrorKind::InvalidInput, format!("Invalid key for domain {}: {:?}", domain_config.domain, e)))?;
+
+            let certified_key = CertifiedKey::new(certs, signing_key);
+
+            resolver.add(&domain_config.domain, certified_key)
+                .map_err(|e| IoError::new(std::io::ErrorKind::InvalidInput, format!("SNI error for {}: {e}", domain_config.domain)))?;
+
+            info!("Added SNI certificate mapping for {}", domain_config.domain);
+        }
+
+        let config = ServerConfig::builder_with_provider(Arc::new(provider.clone()))
+            .with_safe_default_protocol_versions()
+            .map_err(|e| IoError::new(std::io::ErrorKind::Other, format!("Protocol error: {e}")))?
+            .with_no_client_auth()
+            .with_cert_resolver(Arc::new(resolver));
+
+        Ok(Arc::new(config))
     }
 }
 
@@ -140,5 +173,3 @@ fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
     error!("No private key found in {path} (neither PKCS#8, RSA, nor EC)");
     Err(IoError::new(std::io::ErrorKind::InvalidInput, "No private key found (neither PKCS#8, RSA, nor EC)"))
 }
-
-

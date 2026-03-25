@@ -1,10 +1,10 @@
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use log::info;
 
 /// Configuration for a single domain with its certificate
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DomainConfig {
     /// Domain name (used for SNI matching)
     pub domain: String,
@@ -23,6 +23,15 @@ pub struct HttpConfig {
     pub port: u16,
 }
 
+impl Default for HttpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            port: 80,
+        }
+    }
+}
+
 /// Configuration for HTTPS server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpsConfig {
@@ -31,12 +40,25 @@ pub struct HttpsConfig {
     /// Port for HTTPS server
     pub port: u16,
     /// List of domains with their certificates (for SNI support)
-    #[serde(default)]
     pub domains: Vec<DomainConfig>,
 }
 
+impl Default for HttpsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            port: 443,
+            domains: vec![DomainConfig {
+                domain: "www.example.com".to_string(),
+                cert_path: "path-to-cert".to_string(),
+                key_path: "path-to-key".to_string(),
+            }],
+        }
+    }
+}
+
 /// Main server configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     /// HTTP configuration
     pub http: HttpConfig,
@@ -46,25 +68,6 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     /// Get default configuration
-    pub fn default_config() -> Self {
-        ServerConfig {
-            http: HttpConfig {
-                enabled: true,
-                port: 80,
-            },
-            https: HttpsConfig {
-                enabled: false,
-                port: 443,
-                domains: vec![
-                    DomainConfig {
-                        domain: "example.com".to_string(),
-                        cert_path: "./certs/example.com.crt".to_string(),
-                        key_path: "./certs/example.com.key".to_string(),
-                    },
-                ],
-            },
-        }
-    }
 
     /// Load configuration from file, or create default if not found
     pub fn load_or_create(config_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -79,8 +82,11 @@ impl ServerConfig {
             Ok(config)
         } else {
             // Create default config and save it
-            info!("Configuration file not found at {}. Creating default configuration...", config_path);
-            let config = Self::default_config();
+            info!(
+                "Configuration file not found at {}. Creating default configuration...",
+                config_path
+            );
+            let config = Self::default();
             config.save(config_path)?;
             Ok(config)
         }
@@ -101,4 +107,3 @@ impl ServerConfig {
         Ok(())
     }
 }
-

@@ -12,15 +12,13 @@ use log::{debug, error, info, warn};
 use std::convert::Infallible;
 use std::error::Error;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{RwLock};
 
 use crate::webserver::utils::{build_http_request, build_http_response};
 use hyper::server::conn::http1;
-use tokio_rustls::rustls::{self, ServerConfig};
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::rustls::{self};
 
 /// HTTPS/1.1 Server implementation using Hyper and TLS
 pub struct Https1Server {

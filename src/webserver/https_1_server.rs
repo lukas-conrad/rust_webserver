@@ -47,7 +47,7 @@ impl Https1Server {
         });
 
         // Build a single ServerConfig handling multiple domains via SNI
-        let tls_acceptor = CertificateManager::create_updating_acceptor(&domains)?;
+        let tls_acceptor = CertificateManager::create_updating_acceptor(&domains).await?;
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
 

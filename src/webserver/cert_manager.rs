@@ -1,5 +1,5 @@
 use crate::config::DomainConfig;
-use crate::file_watcher::{FileWatcher};
+use crate::file_watcher::FileWatcher;
 use log::{error, info};
 use std::error::Error;
 use std::fs::File;
@@ -17,7 +17,7 @@ pub struct CertificateManager {}
 
 impl CertificateManager {
     /// Build a single ServerConfig handling multiple domains via SNI
-    pub fn create_updating_acceptor(
+    pub async fn create_updating_acceptor(
         domains: &[DomainConfig],
     ) -> Result<Arc<RwLock<TlsAcceptor>>, Box<dyn Error + Send + Sync>> {
         let config = Self::create_sni_resolver(domains)?;
@@ -32,7 +32,7 @@ impl CertificateManager {
             .collect();
 
         let domains = domains.to_vec();
-        let watcher = cloned!(acceptor, domains; FileWatcher::new(paths, Arc::new(move |_| {
+        let mut watcher = cloned!(acceptor, domains; FileWatcher::new(paths, Arc::new(move |_| {
 
             match Self::create_sni_resolver(domains.as_slice()) {
                 Ok(config) => {
@@ -43,6 +43,7 @@ impl CertificateManager {
                 Err(e) => {error!("Error when creating sni resolver: {}", e)}
             };
         })))?;
+        watcher.start().await?;
 
         Ok(acceptor)
     }

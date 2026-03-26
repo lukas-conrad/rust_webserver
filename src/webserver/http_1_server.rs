@@ -29,19 +29,19 @@ impl Http1Server {
         let listener = Arc::new(TcpListener::bind(addr).await?);
 
         spawn_cloned!(server; async move {
-                loop {
-                    if let Ok((stream, _)) = listener.accept().await {
-                        let io = TokioIo::new(stream);
+            loop {
+                if let Ok((stream, _)) = listener.accept().await {
+                    let io = TokioIo::new(stream);
 
-                        spawn_cloned!(server; async move {
-                            if let Err(err) =
-                                http1::Builder::new().serve_connection(io, server).await
-                            {
-                                error!("Connection error: {:?}", err);
-                            }
-                        });
-                    }
+                    spawn_cloned!(server; async move {
+                        if let Err(err) =
+                            http1::Builder::new().serve_connection(io, server).await
+                        {
+                            error!("Connection error: {:?}", err);
+                        }
+                    });
                 }
+            }
             }
         );
 

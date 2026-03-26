@@ -1,21 +1,55 @@
-use log::{error, info};
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufReader, Error as IoError, Seek, SeekFrom};
-use std::path::Path;
-use std::sync::Arc;
-
 use crate::config::DomainConfig;
+use crate::file_watcher::{FileChangeCallback, FileWatcher};
+use log::{error, info};
+use std::error::Error;
+use std::fs::File;
+use std::io::{BufReader, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::{Mutex, RwLock};
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use tokio_rustls::rustls::server::ResolvesServerCertUsingSni;
 use tokio_rustls::rustls::sign::CertifiedKey;
 use tokio_rustls::rustls::ServerConfig;
+use tokio_rustls::TlsAcceptor;
 
 pub struct CertificateManager {}
 
 impl CertificateManager {
     /// Build a single ServerConfig handling multiple domains via SNI
-    pub fn build_sni_config(domains: &[DomainConfig]) -> Result<Arc<ServerConfig>, IoError> {
+    pub fn create_updating_acceptor(
+        domains: &[DomainConfig],
+    ) -> Result<Arc<RwLock<TlsAcceptor>>, Box<dyn Error + Send + Sync>> {
+        let config = Self::create_sni_resolver(domains)?;
+
+        let acceptor = Arc::new(RwLock::new(TlsAcceptor::from(Arc::new(config))));
+
+        let paths = domains
+            .iter()
+            .map(|cfg| vec![cfg.cert_path.clone(), cfg.key_path.clone()])
+            .flatten()
+            .map(|path| PathBuf::from(path))
+            .collect();
+
+        let domains = domains.to_vec();
+        let watcher = cloned!(acceptor, domains; FileWatcher::new(paths, Arc::new(move |_| {
+
+            match Self::create_sni_resolver(domains.as_slice()) {
+                Ok(config) => {
+                    spawn_cloned!(acceptor, config; async move  {
+                        *acceptor.write().await = TlsAcceptor::from(Arc::new(config));
+                    });
+                },
+                Err(e) => {error!("Error when creating sni resolver: {}", e)}
+            };
+        })))?;
+
+        Ok(acceptor)
+    }
+
+    fn create_sni_resolver(
+        domains: &[DomainConfig],
+    ) -> Result<ServerConfig, Box<dyn Error + Send + Sync>> {
         let mut resolver = ResolvesServerCertUsingSni::new();
 
         let provider = tokio_rustls::rustls::crypto::ring::default_provider();
@@ -25,7 +59,7 @@ impl CertificateManager {
             let key = load_key(&domain_config.key_path)?;
 
             let signing_key = provider.key_provider.load_private_key(key).map_err(|e| {
-                IoError::new(
+                std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     format!("Invalid key for domain {}: {:?}", domain_config.domain, e),
                 )
@@ -36,7 +70,7 @@ impl CertificateManager {
             resolver
                 .add(&domain_config.domain, certified_key)
                 .map_err(|e| {
-                    IoError::new(
+                    std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         format!("SNI error for {}: {e}", domain_config.domain),
                     )
@@ -46,17 +80,15 @@ impl CertificateManager {
         }
 
         let config = ServerConfig::builder_with_provider(Arc::new(provider.clone()))
-            .with_safe_default_protocol_versions()
-            .map_err(|e| IoError::new(std::io::ErrorKind::Other, format!("Protocol error: {e}")))?
+            .with_safe_default_protocol_versions()?
             .with_no_client_auth()
             .with_cert_resolver(Arc::new(resolver));
-
-        Ok(Arc::new(config))
+        Ok(config)
     }
 }
 
 /// Load certificates from PEM file
-fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, IoError> {
+fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, std::io::Error> {
     let certfile = File::open(Path::new(path))?;
     let mut reader = BufReader::new(certfile);
     let certs: Vec<_> = rustls_pemfile::certs(&mut reader)
@@ -64,7 +96,7 @@ fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, IoError> {
         .collect();
     if certs.is_empty() {
         error!("No certificates found in {path}");
-        return Err(IoError::new(
+        return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             "No certificates found",
         ));
@@ -75,7 +107,7 @@ fn load_certs(path: &str) -> Result<Vec<CertificateDer<'static>>, IoError> {
 }
 
 /// Load private key from PEM file (supports PKCS#8, RSA, and EC formats)
-fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
+fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, std::io::Error> {
     let keyfile = File::open(Path::new(path))?;
     let mut reader = BufReader::new(keyfile);
 
@@ -116,7 +148,7 @@ fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, IoError> {
     }
 
     error!("No private key found in {path} (neither PKCS#8, RSA, nor EC)");
-    Err(IoError::new(
+    Err(std::io::Error::new(
         std::io::ErrorKind::InvalidInput,
         "No private key found (neither PKCS#8, RSA, nor EC)",
     ))

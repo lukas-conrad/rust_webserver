@@ -10,7 +10,9 @@ use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use log::{debug, error, info, warn};
 use std::convert::Infallible;
+use std::error::Error;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
@@ -32,12 +34,12 @@ impl Https1Server {
     pub async fn start(
         addr: SocketAddr,
         domains: Vec<DomainConfig>,
-    ) -> Result<Arc<Self>, std::io::Error> {
+    ) -> Result<Arc<Self>, Box<dyn Error + Send + Sync>> {
         if domains.is_empty() {
-            return Err(std::io::Error::new(
+            return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "At least one domain configuration is required",
-            ));
+            )));
         }
 
         let server = Arc::new(Self {
@@ -45,19 +47,17 @@ impl Https1Server {
         });
 
         // Build a single ServerConfig handling multiple domains via SNI
-        let sni_config = CertificateManager::build_sni_config(&domains)?;
-        let tls_acceptor = TlsAcceptor::from(sni_config);
+        let tls_acceptor = CertificateManager::create_updating_acceptor(&domains)?;
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
 
         spawn_cloned!(server; async move {
             loop {
-                let accept = listener.accept().await;
                 let server = server.clone();
-                match accept {
+                match listener.accept().await {
                     Ok((stream, _)) => {
                         spawn_cloned!(tls_acceptor, server; async move {
-                            match tls_acceptor.accept(stream).await {
+                            match tls_acceptor.read().await.accept(stream).await {
                                 Ok(tls_stream) => {
                                     let io = TokioIo::new(tls_stream);
                                     if let Err(e) =

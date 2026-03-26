@@ -1,5 +1,5 @@
 use crate::config::DomainConfig;
-use crate::file_watcher::{FileChangeCallback, FileWatcher};
+use crate::file_watcher::{FileWatcher};
 use log::{error, info};
 use std::error::Error;
 use std::fs::File;

@@ -1,9 +1,8 @@
-use crate::webserver::webserver::{CallbackFn, ServerError, Webserver};
-use crate::webserver::cert_manager::CertificateManager;
 use crate::config::DomainConfig;
+use crate::webserver::cert_manager::CertificateManager;
+use crate::webserver::webserver::{CallbackFn, ServerError, Webserver};
 use bytes::Bytes;
 use futures::future::BoxFuture;
-use http_body_util::BodyExt;
 use http_body_util::Full;
 use hyper::body::Incoming;
 use hyper::service::Service;
@@ -16,19 +15,16 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 
-use tokio_rustls::TlsAcceptor;
-use tokio_rustls::rustls::{self, ServerConfig};
-use hyper::server::conn::http1;
 use crate::webserver::utils::{build_http_request, build_http_response};
+use hyper::server::conn::http1;
+use tokio_rustls::rustls::{self, ServerConfig};
+use tokio_rustls::TlsAcceptor;
 
 /// HTTPS/1.1 Server implementation using Hyper and TLS
 pub struct Https1Server {
     /// Callback function for handling incoming requests
     /// Uses RwLock for better concurrency - multiple readers, single writer
     listener: Arc<RwLock<Option<CallbackFn>>>,
-    /// Shutdown signal for graceful shutdown
-    #[allow(dead_code)]
-    shutdown_rx: Arc<Mutex<Option<tokio::sync::broadcast::Receiver<()>>>>,
 }
 
 impl Https1Server {
@@ -44,10 +40,8 @@ impl Https1Server {
             ));
         }
 
-        let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
         let server = Arc::new(Self {
             listener: Arc::new(RwLock::new(None)),
-            shutdown_rx: Arc::new(Mutex::new(Some(shutdown_rx))),
         });
 
         // Build a single ServerConfig handling multiple domains via SNI
@@ -55,51 +49,41 @@ impl Https1Server {
         let tls_acceptor = TlsAcceptor::from(sni_config);
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
-        let server_clone = server.clone();
-        let shutdown_tx_clone = shutdown_tx.clone();
 
-        tokio::task::spawn(async move {
-            let mut shutdown_rx = shutdown_tx_clone.subscribe();
+        spawn_cloned!(server; async move {
             loop {
-                tokio::select! {
-                    _ = shutdown_rx.recv() => {
-                        info!("Https1Server shutting down");
-                        break;
-                    }
-                    accept = listener.accept() => {
-                        let server = server_clone.clone();
-                        match accept {
-                            Ok((stream, _)) => {
-                                let acceptor = tls_acceptor.clone();
-                                let service = server.clone();
-
-                                tokio::task::spawn(async move {
-                                    match acceptor.accept(stream).await {
-                                        Ok(tls_stream) => {
-                                            let io = TokioIo::new(tls_stream);
-                                            if let Err(e) = http1::Builder::new()
-                                                .serve_connection(io, service)
-                                                .await
-                                            {
-                                                error!("HTTP/1.1 connection error: {:?}", e);
-                                            }
-                                        }
-                                        Err(e) => {
-                                            error!("TLS handshake error: {:?}", e);
-                                        }
+                let accept = listener.accept().await;
+                let server = server.clone();
+                match accept {
+                    Ok((stream, _)) => {
+                        spawn_cloned!(tls_acceptor, server; async move {
+                            match tls_acceptor.accept(stream).await {
+                                Ok(tls_stream) => {
+                                    let io = TokioIo::new(tls_stream);
+                                    if let Err(e) =
+                                        http1::Builder::new().serve_connection(io, server).await
+                                    {
+                                        error!("HTTP/1.1 connection error: {:?}", e);
                                     }
-                                });
+                                }
+                                Err(e) => {
+                                    error!("TLS handshake error: {:?}", e);
+                                }
                             }
-                            Err(e) => {
-                                error!("Accept error: {:?}", e);
-                            }
-                        }
+                        });
+                    }
+                    Err(e) => {
+                        error!("Accept error: {:?}", e);
                     }
                 }
             }
         });
 
-        info!("Https1Server started on {} with {} domain(s)", addr, domains.len());
+        info!(
+            "Https1Server started on {} with {} domain(s)",
+            addr,
+            domains.len()
+        );
         for domain in &domains {
             info!("  - {}", domain.domain);
         }
@@ -107,7 +91,6 @@ impl Https1Server {
         Ok(server)
     }
 }
-
 
 impl Webserver for Https1Server {
     fn set_listener(&self, listener: CallbackFn) {
@@ -139,7 +122,10 @@ impl Service<Request<Incoming>> for Https1Server {
                         ))?;
 
                 let request = build_http_request(req).await;
-                debug!("Processing request: {} {}", request.request_method, request.path);
+                debug!(
+                    "Processing request: {} {}",
+                    request.request_method, request.path
+                );
 
                 let response = listener(request).await.map_err(|err| {
                     error!("Plugin error: {:?}", err);
@@ -175,30 +161,29 @@ impl Service<Request<Incoming>> for Https1Server {
     }
 }
 
-
 #[tokio::test]
 async fn test_https1server_with_self_signed_cert() {
-    use rcgen::generate_simple_self_signed;
-    use tempfile::NamedTempFile;
-    use std::io::Write;
-    use std::net::SocketAddr;
-    use std::sync::Arc;
-    use hyper::{Request};
-    use hyper_util::client::legacy::Client;
-    use hyper_util::rt::TokioExecutor;
-    use hyper_rustls::{HttpsConnectorBuilder, ConfigBuilderExt};
-    use http_body_util::Full;
-    use bytes::Bytes;
-    use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
-    use rustls::client::danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid};
-    use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-    use std::sync::Arc as StdArc;
     use crate::plugin_communication::models::{HttpRequest, HttpResponse};
     use crate::webserver::https_1_server::Https1Server;
     use crate::webserver::webserver::Webserver;
-    use futures::FutureExt;
     use base64::prelude::BASE64_STANDARD;
     use base64::Engine;
+    use bytes::Bytes;
+    use futures::FutureExt;
+    use http_body_util::Full;
+    use hyper::Request;
+    use hyper_rustls::{ConfigBuilderExt, HttpsConnectorBuilder};
+    use hyper_util::client::legacy::Client;
+    use hyper_util::rt::TokioExecutor;
+    use rcgen::generate_simple_self_signed;
+    use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+    use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+    use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
+    use std::io::Write;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use std::sync::Arc as StdArc;
+    use tempfile::NamedTempFile;
     use tokio::sync::Mutex;
 
     #[derive(Debug)]
@@ -254,7 +239,10 @@ async fn test_https1server_with_self_signed_cert() {
 
     // 3. Start server on fixed test port
     let test_port = 44443;
-    let addr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), test_port);
+    let addr = SocketAddr::new(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        test_port,
+    );
     let domain_config = DomainConfig {
         domain: "localhost".to_string(),
         cert_path: cert_file.path().to_str().unwrap().to_string(),
@@ -264,7 +252,10 @@ async fn test_https1server_with_self_signed_cert() {
         Ok(s) => s,
         Err(e) => {
             // If port is in use, skip test
-            eprintln!("Could not bind to port {}: {}. Skipping test.", test_port, e);
+            eprintln!(
+                "Could not bind to port {}: {}. Skipping test.",
+                test_port, e
+            );
             return;
         }
     };
@@ -291,9 +282,12 @@ async fn test_https1server_with_self_signed_cert() {
 
     // 5. Build TLS client (accepts all certificates)
     let mut config = ClientConfig::builder()
-        .with_native_roots().expect("native roots")
+        .with_native_roots()
+        .expect("native roots")
         .with_no_client_auth();
-    config.dangerous().set_certificate_verifier(StdArc::new(NoCertificateVerification));
+    config
+        .dangerous()
+        .set_certificate_verifier(StdArc::new(NoCertificateVerification));
     let https = HttpsConnectorBuilder::new()
         .with_tls_config(config)
         .https_only()
@@ -308,12 +302,13 @@ async fn test_https1server_with_self_signed_cert() {
         .body(Full::new(Bytes::from("")))
         .unwrap();
 
-    let response_result = tokio::time::timeout(std::time::Duration::from_secs(3), client.request(req)).await;
+    let response_result =
+        tokio::time::timeout(std::time::Duration::from_secs(3), client.request(req)).await;
     match response_result {
         Ok(Ok(_response)) => { /* all ok */ }
         Ok(Err(e)) => {
             panic!("Client request error: {e:?}");
-        },
+        }
         Err(_) => panic!("Timeout: Client request was not answered within 3 seconds!"),
     }
     let request = receiver.await.unwrap();

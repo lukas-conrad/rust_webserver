@@ -1,9 +1,6 @@
-use crate::plugin_communication::models::{HttpHeader, HttpRequest};
 use crate::webserver::webserver::{CallbackFn, ServerError, Webserver};
 use crate::webserver::cert_manager::CertificateManager;
 use crate::config::DomainConfig;
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use http_body_util::BodyExt;
@@ -17,7 +14,6 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use std::path::Path;
 use tokio::sync::{Mutex, RwLock};
 
 use tokio_rustls::TlsAcceptor;

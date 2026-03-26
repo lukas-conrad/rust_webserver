@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
-use std::{env, error};
+use std::env;
 use tokio::fs;
 
 #[derive(Parser, Debug)]

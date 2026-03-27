@@ -1,6 +1,6 @@
 {
   "http": {
-    "enabled": true,
+    "enabled": false,
     "port": 80
   },
   "https": {

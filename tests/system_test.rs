@@ -6,8 +6,8 @@ use hyper::Request;
 use rust_webserver::plugin::plugin_config::{PluginConfig, ProtocolEnum};
 use rust_webserver::plugin_communication::models::RequestInformation;
 use rust_webserver::config::{ServerConfig, HttpConfig, HttpsConfig};
-use std::env;
 use std::net::TcpListener;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::process::Command;
 use tempfile::TempDir;
@@ -26,21 +26,9 @@ fn find_free_port() -> u16 {
 
 #[tokio::test]
 async fn system_test() {
-    // Locate the executable files
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    let target_dir = current_dir.join("target").join("debug");
-
-    let main_exe = if cfg!(windows) {
-        target_dir.join("rust_webserver.exe")
-    } else {
-        target_dir.join("rust_webserver")
-    };
-
-    let test_plugin_exe = if cfg!(windows) {
-        target_dir.join("test_plugin.exe")
-    } else {
-        target_dir.join("test_plugin")
-    };
+    // Cargo provides profile-correct binary paths for integration tests.
+    let main_exe = PathBuf::from(env!("CARGO_BIN_EXE_rust_webserver"));
+    let test_plugin_exe = PathBuf::from(env!("CARGO_BIN_EXE_test_plugin"));
 
     // Ensure the executables exist
     assert!(

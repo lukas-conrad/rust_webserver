@@ -83,7 +83,12 @@ impl Https1Server {
             domains.len()
         );
         for domain in &domains {
-            info!("  - {}", domain.domain);
+            info!("  - {:?}", domain.domains);
+        }
+        info!("HTTPS Server listening on {}", addr);
+        info!("Configured domains:");
+        for domain in &domains {
+            info!("  - {:?}", domain.domains);
         }
 
         Ok(server)
@@ -242,7 +247,7 @@ async fn test_https1server_with_self_signed_cert() {
         test_port,
     );
     let domain_config = DomainConfig {
-        domain: "localhost".to_string(),
+        domains: vec!["localhost".to_string()],
         cert_path: cert_file.path().to_str().unwrap().to_string(),
         key_path: key_file.path().to_str().unwrap().to_string(),
     };

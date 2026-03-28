@@ -8,16 +8,21 @@
     "port": 443,
     "domains": [
       {
-        "domain": "simple-tools.net",
+        "domains": [
+          "*.simple-tools.net",
+          "simple-tools.net"
+        ],
         "cert_path": "/etc/letsencrypt/live/simple-tools.net/fullchain.pem",
         "key_path": "/etc/letsencrypt/live/simple-tools.net/privkey.pem"
       },
       {
-        "domain": "lukas-conrad.dev",
+        "domains": [
+          "*.lukas-conrad.dev",
+          "lukas-conrad.dev"
+        ],
         "cert_path": "/etc/letsencrypt/live/lukas-conrad.dev/fullchain.pem",
         "key_path": "/etc/letsencrypt/live/lukas-conrad.dev/privkey.pem"
       }
     ]
   }
 }
-

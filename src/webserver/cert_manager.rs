@@ -31,17 +31,20 @@ impl WildcardCertResolver {
         }
     }
 
-    /// Add a domain certificate (supports wildcard domains like *.example.com)
-    pub fn add(&mut self, domain: String, cert: CertifiedKey) -> Result<(), String> {
+    /// Add one or more domain certificates (supports wildcard domains like *.example.com)
+    pub fn add(&mut self, domains: &[String], cert: CertifiedKey) -> Result<(), String> {
         let arc_cert = Arc::new(cert);
 
-        if domain.starts_with("*.") {
-            // For wildcard domains, store both the wildcard and the base domain
-            let base_domain = domain[2..].to_string(); // Remove "*."
-            self.wildcard_certs.insert(base_domain, arc_cert.clone());
-            self.certs.insert(domain, arc_cert);
-        } else {
-            self.certs.insert(domain, arc_cert);
+        for domain in domains {
+            let domain = domain.trim().to_string();
+            if domain.starts_with("*.") {
+                // For wildcard domains, store both the wildcard and the base domain
+                let base_domain = domain[2..].to_string(); // Remove "*."
+                self.wildcard_certs.insert(base_domain, arc_cert.clone());
+                self.certs.insert(domain, arc_cert.clone());
+            } else {
+                self.certs.insert(domain, arc_cert.clone());
+            }
         }
 
         Ok(())
@@ -142,22 +145,22 @@ impl CertificateManager {
             let signing_key = provider.key_provider.load_private_key(key).map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("Invalid key for domain {}: {:?}", domain_config.domain, e),
+                    format!("Invalid key for domain {:?}: {:?}", domain_config.domains, e),
                 )
             })?;
 
             let certified_key = CertifiedKey::new(certs, signing_key);
 
             resolver
-                .add(domain_config.domain.clone(), certified_key)
+                .add(&domain_config.domains, certified_key)
                 .map_err(|e| {
                     std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
-                        format!("SNI error for {}: {e}", domain_config.domain),
+                        format!("SNI error for {:?}: {e}", domain_config.domains),
                     )
                 })?;
 
-            info!("Added SNI certificate mapping for {}", domain_config.domain);
+            info!("Added SNI certificate mapping for {:?}", domain_config.domains);
         }
 
         let config = ServerConfig::builder_with_provider(Arc::new(provider.clone()))

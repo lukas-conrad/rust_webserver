@@ -6,8 +6,8 @@ use std::path::Path;
 /// Configuration for a single domain with its certificate
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DomainConfig {
-    /// Domain name (used for SNI matching)
-    pub domain: String,
+    /// Domain names (used for SNI matching, supports wildcards)
+    pub domains: Vec<String>,
     /// Path to SSL certificate file
     pub cert_path: String,
     /// Path to SSL private key file
@@ -49,7 +49,7 @@ impl Default for HttpsConfig {
             enabled: false,
             port: 443,
             domains: vec![DomainConfig {
-                domain: "www.example.com".to_string(),
+                domains: vec!["www.example.com".to_string()],
                 cert_path: "path-to-cert".to_string(),
                 key_path: "path-to-key".to_string(),
             }],

@@ -72,8 +72,8 @@ impl ResolvesServerCert for WildcardCertResolver {
         let server_name_str = match client_hello.server_name() {
             Some(name) => name.to_lowercase(),
             None => {
-                info!("No SNI provided, returning default certificate.");
-                return self.certs.values().next().or_else(|| self.wildcard_certs.values().next()).cloned();
+                info!("No SNI provided, rejecting connection.");
+                return None;
             }
         };
 
@@ -97,8 +97,8 @@ impl ResolvesServerCert for WildcardCertResolver {
                self.certs.len(),
                self.wildcard_certs.len());
 
-        // Return fallback even if domain is not found
-        self.certs.values().next().or_else(|| self.wildcard_certs.values().next()).cloned()
+        // Do not return fallback, explicitly abort handshake
+        None
     }
 }
 

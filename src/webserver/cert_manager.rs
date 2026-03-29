@@ -91,7 +91,6 @@ impl ResolvesServerCert for WildcardCertResolver {
             }
         }
 
-        // 3. Fallback: try to find any certificate that could work
         error!("No certificate found for domain: {} (checked {} exact matches and {} wildcard patterns)",
                server_name_str,
                self.certs.len(),
@@ -146,6 +145,36 @@ impl CertificateManager {
 
         for domain_config in domains {
             let certs = load_certs(&domain_config.cert_path)?;
+
+            for cert_der in &certs {
+                match x509_parser::parse_x509_certificate(cert_der.as_ref()) {
+                    Ok((_, cert)) => {
+                        let mut domains_in_cert = Vec::new();
+
+                        if let Ok(Some(san_ext)) = cert.subject_alternative_name() {
+                            for name in san_ext.value.general_names.iter() {
+                                if let x509_parser::prelude::GeneralName::DNSName(dns) = name {
+                                    domains_in_cert.push(dns.to_string());
+                                }
+                            }
+                        }
+
+                        if domains_in_cert.is_empty() {
+                            if let Some(cn) = cert.subject().iter_common_name().next() {
+                                if let Ok(cn_str) = cn.attr_value().as_str() {
+                                    domains_in_cert.push(cn_str.to_string());
+                                }
+                            }
+                        }
+
+                        info!("Certificate ({:?}) covers these domains: {:?}", domain_config.cert_path, domains_in_cert);
+                    },
+                    Err(e) => {
+                        error!("Error parsing certificate to read SAN: {:?}", e);
+                    }
+                }
+            }
+
             let key = load_key(&domain_config.key_path)?;
 
             let signing_key = provider.key_provider.load_private_key(key).map_err(|e| {

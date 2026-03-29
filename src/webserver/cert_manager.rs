@@ -1,4 +1,3 @@
-use crate::config::DomainConfig;
 use crate::file_watcher::FileWatcher;
 use log::{error, info};
 use std::collections::HashMap;
@@ -13,6 +12,7 @@ use tokio_rustls::rustls::server::ResolvesServerCert;
 use tokio_rustls::rustls::sign::CertifiedKey;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_rustls::TlsAcceptor;
+use crate::config::CertificateConfig;
 
 /// Custom certificate resolver with wildcard domain matching support
 #[derive(Debug)]
@@ -104,25 +104,25 @@ impl ResolvesServerCert for WildcardCertResolver {
 pub struct CertificateManager {}
 
 impl CertificateManager {
-    /// Build a single ServerConfig handling multiple domains via SNI
+    /// Build a single ServerConfig handling multiple certificates via SNI
     pub async fn create_updating_acceptor(
-        domains: &[DomainConfig],
+        certificates: &[CertificateConfig],
     ) -> Result<Arc<RwLock<TlsAcceptor>>, Box<dyn Error + Send + Sync>> {
-        let config = Self::create_sni_resolver(domains)?;
+        let config = Self::create_sni_resolver(certificates)?;
 
         let acceptor = Arc::new(RwLock::new(TlsAcceptor::from(Arc::new(config))));
 
-        let paths = domains
+        let paths = certificates
             .iter()
             .map(|cfg| vec![cfg.cert_path.clone(), cfg.key_path.clone()])
             .flatten()
             .map(|path| PathBuf::from(path))
             .collect();
 
-        let domains = domains.to_vec();
-        let mut watcher = cloned!(acceptor, domains; FileWatcher::new(paths, Arc::new(move |_| {
+        let certificates = certificates.to_vec();
+        let mut watcher = cloned!(acceptor, certificates; FileWatcher::new(paths, Arc::new(move |_| {
 
-            match Self::create_sni_resolver(domains.as_slice()) {
+            match Self::create_sni_resolver(certificates.as_slice()) {
                 Ok(config) => {
                     spawn_cloned!(acceptor, config; async move  {
                         *acceptor.write().await = TlsAcceptor::from(Arc::new(config));
@@ -137,14 +137,16 @@ impl CertificateManager {
     }
 
     fn create_sni_resolver(
-        domains: &[DomainConfig],
+        certificates: &[CertificateConfig],
     ) -> Result<ServerConfig, Box<dyn Error + Send + Sync>> {
         let mut resolver = WildcardCertResolver::new();
 
         let provider = tokio_rustls::rustls::crypto::ring::default_provider();
 
-        for domain_config in domains {
-            let certs = load_certs(&domain_config.cert_path)?;
+        for cert_config in certificates {
+            let certs = load_certs(&cert_config.cert_path)?;
+
+            let mut extracted_domains = Vec::new();
 
             for cert_der in &certs {
                 match x509_parser::parse_x509_certificate(cert_der.as_ref()) {
@@ -167,7 +169,7 @@ impl CertificateManager {
                             }
                         }
 
-                        info!("Certificate ({:?}) covers these domains: {:?}", domain_config.cert_path, domains_in_cert);
+                        extracted_domains.extend(domains_in_cert);
                     },
                     Err(e) => {
                         error!("Error parsing certificate to read SAN: {:?}", e);
@@ -175,27 +177,37 @@ impl CertificateManager {
                 }
             }
 
-            let key = load_key(&domain_config.key_path)?;
+            extracted_domains.sort();
+            extracted_domains.dedup();
+
+            if extracted_domains.is_empty() {
+                error!("No valid domains found in certificate {:?}, skipping", cert_config.cert_path);
+                continue;
+            }
+
+            info!("Certificate ({:?}) covers these domains: {:?}", cert_config.cert_path, extracted_domains);
+
+            let key = load_key(&cert_config.key_path)?;
 
             let signing_key = provider.key_provider.load_private_key(key).map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("Invalid key for domain {:?}: {:?}", domain_config.domains, e),
+                    format!("Invalid key for certificate {:?}: {:?}", cert_config.cert_path, e),
                 )
             })?;
 
             let certified_key = CertifiedKey::new(certs, signing_key);
 
             resolver
-                .add(&domain_config.domains, certified_key)
+                .add(&extracted_domains, certified_key)
                 .map_err(|e| {
                     std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
-                        format!("SNI error for {:?}: {e}", domain_config.domains),
+                        format!("SNI error for {:?}: {e}", extracted_domains),
                     )
                 })?;
 
-            info!("Added SNI certificate mapping for {:?}", domain_config.domains);
+            info!("Added SNI certificate mapping for {:?}", extracted_domains);
         }
 
         let config = ServerConfig::builder_with_provider(Arc::new(provider.clone()))

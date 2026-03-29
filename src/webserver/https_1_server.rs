@@ -1,4 +1,3 @@
-use crate::config::DomainConfig;
 use crate::webserver::cert_manager::CertificateManager;
 use crate::webserver::webserver::{CallbackFn, ServerError, Webserver};
 use bytes::Bytes;
@@ -19,6 +18,7 @@ use tokio::sync::{RwLock};
 use crate::webserver::utils::{build_http_request, build_http_response};
 use hyper::server::conn::http1;
 use tokio_rustls::rustls::{self};
+use crate::config::CertificateConfig;
 
 /// HTTPS/1.1 Server implementation using Hyper and TLS
 pub struct Https1Server {
@@ -31,12 +31,12 @@ impl Https1Server {
     /// Start HTTPS server with multi-domain SNI support
     pub async fn start(
         addr: SocketAddr,
-        domains: Vec<DomainConfig>,
+        certificates: Vec<CertificateConfig>,
     ) -> Result<Arc<Self>, Box<dyn Error + Send + Sync>> {
-        if domains.is_empty() {
+        if certificates.is_empty() {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "At least one domain configuration is required",
+                "At least one certificate configuration is required",
             )));
         }
 
@@ -45,7 +45,7 @@ impl Https1Server {
         });
 
         // Build a single ServerConfig handling multiple domains via SNI
-        let tls_acceptor = CertificateManager::create_updating_acceptor(&domains).await?;
+        let tls_acceptor = CertificateManager::create_updating_acceptor(&certificates).await?;
 
         let listener = Arc::new(TcpListener::bind(addr).await?);
 
@@ -78,18 +78,11 @@ impl Https1Server {
         });
 
         info!(
-            "Https1Server started on {} with {} domain(s)",
+            "Https1Server started on {} with {} certificate(s)",
             addr,
-            domains.len()
+            certificates.len()
         );
-        for domain in &domains {
-            info!("  - {:?}", domain.domains);
-        }
         info!("HTTPS Server listening on {}", addr);
-        info!("Configured domains:");
-        for domain in &domains {
-            info!("  - {:?}", domain.domains);
-        }
 
         Ok(server)
     }
@@ -246,8 +239,7 @@ async fn test_https1server_with_self_signed_cert() {
         std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
         test_port,
     );
-    let domain_config = DomainConfig {
-        domains: vec!["localhost".to_string()],
+    let domain_config = CertificateConfig {
         cert_path: cert_file.path().to_str().unwrap().to_string(),
         key_path: key_file.path().to_str().unwrap().to_string(),
     };

@@ -6,20 +6,12 @@
   "https": {
     "enabled": true,
     "port": 443,
-    "domains": [
+    "certificates": [
       {
-        "domains": [
-          "*.simple-tools.net",
-          "simple-tools.net"
-        ],
         "cert_path": "/etc/letsencrypt/live/simple-tools.net/fullchain.pem",
         "key_path": "/etc/letsencrypt/live/simple-tools.net/privkey.pem"
       },
       {
-        "domains": [
-          "*.lukas-conrad.dev",
-          "lukas-conrad.dev"
-        ],
         "cert_path": "/etc/letsencrypt/live/lukas-conrad.dev/fullchain.pem",
         "key_path": "/etc/letsencrypt/live/lukas-conrad.dev/privkey.pem"
       }

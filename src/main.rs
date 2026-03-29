@@ -1,3 +1,4 @@
+use chrono::Local;
 use clap::Parser;
 use futures::FutureExt;
 use log::{debug, error, info};
@@ -154,19 +155,19 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 async fn start_https_server(
     server_config: ServerConfig,
 ) -> Result<Arc<Https1Server>, Box<dyn Error + Send + Sync>> {
-    if server_config.https.domains.is_empty() {
-        error!("HTTPS is enabled but no domains are configured");
-        return Err("HTTPS requires at least one domain configuration".into());
+    if server_config.https.certificates.is_empty() {
+        error!("HTTPS is enabled but no certificates are configured");
+        return Err("HTTPS requires at least one certificate configuration".into());
     }
 
     info!(
-        "Starting HTTPS server on 0.0.0.0:{} with {} domain(s)",
+        "Starting HTTPS server on 0.0.0.0:{} with {} certificate(s)",
         server_config.https.port,
-        server_config.https.domains.len()
+        server_config.https.certificates.len()
     );
     match Https1Server::start(
         SocketAddr::from(([0, 0, 0, 0], server_config.https.port)),
-        server_config.https.domains.clone(),
+        server_config.https.certificates.clone(),
     )
     .await
     {

@@ -3,11 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-/// Configuration for a single domain with its certificate
+/// Configuration for a single certificate
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct DomainConfig {
-    /// Domain names (used for SNI matching, supports wildcards)
-    pub domains: Vec<String>,
+pub struct CertificateConfig {
     /// Path to SSL certificate file
     pub cert_path: String,
     /// Path to SSL private key file
@@ -39,8 +37,8 @@ pub struct HttpsConfig {
     pub enabled: bool,
     /// Port for HTTPS server
     pub port: u16,
-    /// List of domains with their certificates (for SNI support)
-    pub domains: Vec<DomainConfig>,
+    /// List of certificates
+    pub certificates: Vec<CertificateConfig>,
 }
 
 impl Default for HttpsConfig {
@@ -48,8 +46,7 @@ impl Default for HttpsConfig {
         Self {
             enabled: false,
             port: 443,
-            domains: vec![DomainConfig {
-                domains: vec!["www.example.com".to_string()],
+            certificates: vec![CertificateConfig {
                 cert_path: "path-to-cert".to_string(),
                 key_path: "path-to-key".to_string(),
             }],

@@ -10,8 +10,8 @@ async fn test_wildcard_cert_resolver_logic() {
     // Basic subdomain should match wildcard base
     assert!(WildcardCertResolver::matches_wildcard("api.example.com", "example.com"));
 
-    // Multi-level subdomain should also match
-    assert!(WildcardCertResolver::matches_wildcard("v1.api.example.com", "example.com"));
+    // Multi-level subdomain should NOT match
+    assert!(!WildcardCertResolver::matches_wildcard("v1.api.example.com", "example.com"));
 
     // Base domain should match itself
     assert!(WildcardCertResolver::matches_wildcard("example.com", "example.com"));
@@ -35,11 +35,11 @@ fn test_common_subdomain_patterns() {
         ("mail.example.com", "example.com", true),
         ("static.example.com", "example.com", true),
         ("cdn.example.com", "example.com", true),
-        ("v2.api.example.com", "example.com", true),
         ("staging-api.example.com", "example.com", true),
         ("prod-db.example.com", "example.com", true),
 
         // Should NOT match
+        ("v2.api.example.com", "example.com", false),
         ("example.com.evil.com", "example.com", false),
         ("evilexample.com", "example.com", false),
         ("notexample.com", "example.com", false),
@@ -75,9 +75,8 @@ fn test_wildcard_edge_cases() {
     assert!(!WildcardCertResolver::matches_wildcard("", "example.com"));
     assert!(!WildcardCertResolver::matches_wildcard("example.com", ""));
 
-    // Case sensitivity check (DNS is case-insensitive, but our comparison is case-sensitive)
-    // This is expected to fail because we're doing literal string comparison
-    assert!(!WildcardCertResolver::matches_wildcard("API.EXAMPLE.COM", "example.com"));
+    // Case sensitivity check (DNS is case-insensitive, so this should pass)
+    assert!(WildcardCertResolver::matches_wildcard("API.EXAMPLE.COM", "example.com"));
 }
 
 /// Test the resolver with realistic domain configurations
@@ -143,7 +142,6 @@ fn test_realistic_sni_scenarios() {
         "www.example.com",
         "mail.example.com",
         "ftp.example.com",
-        "v2.api.example.com",
     ];
 
     for request in test_requests {
@@ -157,6 +155,7 @@ fn test_realistic_sni_scenarios() {
 
     // These should NOT match
     let invalid_requests = vec![
+        "v2.api.example.com",
         "notexample.com",
         "example.com.attacker.com",
         "evil.com",
@@ -171,6 +170,4 @@ fn test_realistic_sni_scenarios() {
         );
     }
 }
-
-
 

@@ -52,16 +52,15 @@ impl WildcardCertResolver {
 
     /// Check if a domain matches a wildcard pattern
     pub fn matches_wildcard(requested: &str, wildcard_base: &str) -> bool {
-        if requested == wildcard_base {
+        let req_lower = requested.to_lowercase();
+        let base_lower = wildcard_base.to_lowercase();
+
+        if req_lower == base_lower {
             return true;
         }
 
-        // Check if requested domain is a subdomain of the wildcard base
-        if requested.ends_with(&format!(".{}", wildcard_base)) {
-            // Make sure there's exactly one level of subdomain for proper wildcard matching
-            // e.g., api.example.com matches *.example.com
-            // but api.v2.example.com should also match *.example.com (RFC allows multi-level)
-            return true;
+        if let Some(sub) = req_lower.strip_suffix(&format!(".{}", base_lower)) {
+            return !sub.contains('.');
         }
 
         false
@@ -70,18 +69,23 @@ impl WildcardCertResolver {
 
 impl ResolvesServerCert for WildcardCertResolver {
     fn resolve(&self, client_hello: tokio_rustls::rustls::server::ClientHello) -> Option<Arc<CertifiedKey>> {
-        let server_name = client_hello.server_name()?;
-        let server_name_str = server_name;
+        let server_name_str = match client_hello.server_name() {
+            Some(name) => name.to_lowercase(),
+            None => {
+                info!("No SNI provided, returning default certificate.");
+                return self.certs.values().next().or_else(|| self.wildcard_certs.values().next()).cloned();
+            }
+        };
 
         // 1. Try exact match first
-        if let Some(cert) = self.certs.get(server_name_str) {
+        if let Some(cert) = self.certs.get(&server_name_str) {
             info!("Certificate found for exact domain match: {}", server_name_str);
             return Some(cert.clone());
         }
 
         // 2. Try wildcard matching
         for (wildcard_base, cert) in &self.wildcard_certs {
-            if Self::matches_wildcard(server_name_str, wildcard_base) {
+            if Self::matches_wildcard(&server_name_str, wildcard_base) {
                 info!("Certificate found for wildcard match: {} matches *.{}", server_name_str, wildcard_base);
                 return Some(cert.clone());
             }
@@ -92,7 +96,9 @@ impl ResolvesServerCert for WildcardCertResolver {
                server_name_str,
                self.certs.len(),
                self.wildcard_certs.len());
-        None
+
+        // Return fallback even if domain is not found
+        self.certs.values().next().or_else(|| self.wildcard_certs.values().next()).cloned()
     }
 }
 
@@ -244,26 +250,19 @@ mod tests {
 
     #[test]
     fn test_wildcard_matching_subdomain() {
-        // Test: subdomain matches wildcard pattern
-        let wildcard_base = "example.com";
-        let requested = "api.example.com";
-        assert!(WildcardCertResolver::matches_wildcard(requested, wildcard_base));
-    }
+        let wildcard_base = "meine-website.net";
 
-    #[test]
-    fn test_wildcard_matching_multi_level_subdomain() {
-        // Test: multi-level subdomain matches wildcard pattern
-        let wildcard_base = "example.com";
-        let requested = "v2.api.example.com";
-        assert!(WildcardCertResolver::matches_wildcard(requested, wildcard_base));
-    }
+        // meine-website.net -> match
+        assert!(WildcardCertResolver::matches_wildcard("meine-website.net", wildcard_base));
 
-    #[test]
-    fn test_wildcard_matching_base_domain() {
-        // Test: base domain matches itself
-        let wildcard_base = "example.com";
-        let requested = "example.com";
-        assert!(WildcardCertResolver::matches_wildcard(requested, wildcard_base));
+        // api.meine-website.net -> match
+        assert!(WildcardCertResolver::matches_wildcard("api.meine-website.net", wildcard_base));
+
+        // sub.api.meine-website.net -> kein match
+        assert!(!WildcardCertResolver::matches_wildcard("sub.api.meine-website.net", wildcard_base));
+
+        // bösemeine-website.net -> kein match
+        assert!(!WildcardCertResolver::matches_wildcard("bösemeine-website.net", wildcard_base));
     }
 
     #[test]
@@ -342,9 +341,9 @@ mod tests {
         assert!(WildcardCertResolver::matches_wildcard("www.example.com", wildcard_base));
         assert!(WildcardCertResolver::matches_wildcard("mail.example.com", wildcard_base));
         assert!(WildcardCertResolver::matches_wildcard("static.example.com", wildcard_base));
-        assert!(WildcardCertResolver::matches_wildcard("v1.api.example.com", wildcard_base));
 
         // Invalid patterns
+        assert!(!WildcardCertResolver::matches_wildcard("v1.api.example.com", wildcard_base));
         assert!(!WildcardCertResolver::matches_wildcard("notexample.com", wildcard_base));
         assert!(!WildcardCertResolver::matches_wildcard("example.com.fake", wildcard_base));
     }

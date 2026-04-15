@@ -367,8 +367,8 @@ mod tests {
     }
 
     /// Helper to test in-memory TLS handshake
-    fn check_ssl_handshake(server_config: Arc<ServerConfig>, domain: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from(domain).unwrap().to_owned();
+    fn check_ssl_handshake(server_config: Arc<ServerConfig>, domain: &str) -> Result<(), Box<dyn Error>> {
+        let server_name = rustls::pki_types::ServerName::try_from(domain)?.to_owned();
 
         let mut client_config = ClientConfig::builder()
             .with_root_certificates(tokio_rustls::rustls::RootCertStore::empty())

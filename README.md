@@ -228,14 +228,6 @@ src/
     └── in_memory_storage.rs         # Test implementation
 ```
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
 ## Roadmap
 
 - [ ] Support for additional communication protocols (WebSocket, gRPC)
